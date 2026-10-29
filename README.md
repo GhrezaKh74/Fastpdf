@@ -151,6 +151,7 @@ All sizes are in points (1/72 inch). Element `x`/`y` are relative to the band's 
     "headerHeight": 22, "rowHeight": 15, "repeatHeader": true, "fitWidth": true,
     "altRowBackground": "#F5F7FA", "showGrandTotals": true, "showPageTotals": false, "showCarryForward": false,
     "groupBy": null, "emptyText": "تراکنشی یافت نشد",
+    "maxColumnsPerLine": 12,           // >12 visible columns → each record on 2 lines (like the dynamic Stimulsoft report)
     "columns": [
       { "header": "ردیف",  "field": "RowNumber", "width": 32 },
       { "header": "تاریخ", "field": "TR0108", "format": "mask:####/##/##", "width": 58 },

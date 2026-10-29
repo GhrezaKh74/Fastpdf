@@ -35,6 +35,8 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
     private readonly Col[] _cols = Array.Empty<Col>();
     private readonly double _tableLeft, _tableRight;
     private readonly bool _hasWrap;
+    private readonly int _lineCount = 1;      // تعداد سطر هر رکورد (برای ستون‌های زیاد)
+    private readonly double[] _lineH = new double[1];
     private readonly ResolvedStyle? _headerStyle, _rowStyle, _totalsStyle, _groupStyle;
     private readonly PdfColor? _headerBg, _altBg, _totalsBg, _groupBg;
     private readonly PdfColor _borderColor;
@@ -55,6 +57,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
     private readonly List<(double Start, double End)> _segments = new();
     private readonly List<double> _hLines = new();
     private readonly List<(double X, double Y1, double Y2)> _extraV = new();
+    private readonly List<double> _extraH = new();
     private char[] _groupKey = new char[64];
     private int _groupKeyLen = -1;
     private char[] _buf = new char[128];
@@ -132,20 +135,36 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
                 _borderColor = Color(_table.BorderColor) ?? PdfColor.Gray;
 
                 var visible = _table.Columns.Where(c => c.Visible).ToList();
-                double sum = visible.Sum(c => Math.Max(1, c.Width));
-                double scale = _table.FitWidth && sum > 0 ? _contentW / sum : Math.Min(1, sum > 0 ? _contentW / sum : 1);
-                double tableW = sum * scale;
+
+                // تقسیم ستون‌ها به چند سطر (مانند گزارش پویا با بیش از ۱۲ ستون)
+                var lineOf = new int[visible.Count];
+                if (visible.Any(c => c.Line > 0))
+                    for (int i = 0; i < visible.Count; i++) lineOf[i] = Math.Max(0, visible[i].Line ?? 0);
+                else if (_table.MaxColumnsPerLine > 0 && visible.Count > _table.MaxColumnsPerLine)
+                {
+                    int lines = (int)Math.Ceiling(visible.Count / (double)_table.MaxColumnsPerLine);
+                    int perLine = (int)Math.Ceiling(visible.Count / (double)lines);
+                    for (int i = 0; i < visible.Count; i++) lineOf[i] = i / perLine;
+                }
+                _lineCount = visible.Count == 0 ? 1 : lineOf.Max() + 1;
+                _lineH = new double[_lineCount];
+                var sums = new double[_lineCount];
+                for (int i = 0; i < visible.Count; i++) sums[lineOf[i]] += Math.Max(1, visible[i].Width);
+                double maxSum = Math.Max(1, sums.Max());
+                double tableW = _table.FitWidth ? _contentW : Math.Min(_contentW, maxSum);
                 _tableLeft = template.RightToLeft ? _left + _contentW - tableW : _left;
                 _tableRight = _tableLeft + tableW;
 
                 _cols = new Col[visible.Count];
-                double cursor = template.RightToLeft ? _tableRight : _tableLeft;
+                var cursors = Enumerable.Repeat(template.RightToLeft ? _tableRight : _tableLeft, _lineCount).ToArray();
                 for (int i = 0; i < visible.Count; i++)
                 {
                     var cd = visible[i];
-                    var col = new Col { Def = cd, W = Math.Max(1, cd.Width) * scale };
-                    if (template.RightToLeft) { cursor -= col.W; col.X = cursor; }
-                    else { col.X = cursor; cursor += col.W; }
+                    int line = lineOf[i];
+                    double scale = _table.FitWidth ? tableW / Math.Max(1, sums[line]) : tableW / maxSum;
+                    var col = new Col { Def = cd, Line = line, W = Math.Max(1, cd.Width) * scale };
+                    if (template.RightToLeft) { cursors[line] -= col.W; col.X = cursors[line]; }
+                    else { col.X = cursors[line]; cursors[line] += col.W; }
 
                     col.Binding = TextTemplate<T>.Parse(cd.Field, this, bareField: true, defaultFormat: cd.Format);
                     if (col.Binding.Segments.Length == 1)
@@ -203,8 +222,8 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
 
             if (expectedRows is > 0 && _table != null)
             {
-                double usable = ContentBottom - _top - (_pageHeader?.Height ?? 0) - _table.HeaderHeight;
-                double perPage = Math.Max(1, Math.Floor(usable / Math.Max(1, _table.RowHeight)));
+                double usable = ContentBottom - _top - (_pageHeader?.Height ?? 0) - _table.HeaderHeight * _lineCount;
+                double perPage = Math.Max(1, Math.Floor(usable / Math.Max(1, _table.RowHeight * _lineCount)));
                 long pages = (long)Math.Ceiling(expectedRows.Value / perPage) + 1;
                 _pdf.Options.TotalPagesDigits = pages.ToString().Length;
             }
@@ -302,14 +321,17 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         var cols = _cols;
         for (int i = 0; i < cols.Length; i++) FormatCell(cols[i], row);
 
-        double h = _table.RowHeight;
+        for (int l = 0; l < _lineCount; l++) _lineH[l] = _table.RowHeight;
         if (_hasWrap)
         {
+            double maxLine = (TableBottom - _top - _table.HeaderHeight * _lineCount - 1) / _lineCount;
             foreach (var c in cols)
                 if (c.Wrap && c.Len > 0)
-                    h = Math.Max(h, PdfPage.MeasureTextHeight(_pdf, c.Buf.AsSpan(0, c.Len), c.W, c.Style.Text));
-            h = Math.Min(h, TableBottom - _top - _table.HeaderHeight - 1);
+                    _lineH[c.Line] = Math.Min(maxLine, Math.Max(_lineH[c.Line],
+                        PdfPage.MeasureTextHeight(_pdf, c.Buf.AsSpan(0, c.Len), c.W, c.Style.Text)));
         }
+        double h = 0;
+        for (int l = 0; l < _lineCount; l++) h += _lineH[l];
         EnsureSpace(h);
 
         var page = _page!;
@@ -319,9 +341,12 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         {
             var c = cols[i];
             if (c.Len == 0) continue;
+            double cy = _y, ch = _lineH[c.Line];
+            for (int l = 0; l < c.Line; l++) cy += _lineH[l];
             var style = c.NegativeStyle != null && (c.Buf[0] == '-' || c.Buf[0] == '(') ? c.NegativeStyle : c.Style.Text;
-            page.DrawText(c.Buf.AsSpan(0, c.Len), c.X, _y, c.W, h, style);
+            page.DrawText(c.Buf.AsSpan(0, c.Len), c.X, cy, c.W, ch, style);
         }
+        if (_lineCount > 1) AddLineVerticals(_y, _lineH);
         _y += h;
         if (_table.HorizontalLines) _hLines.Add(_y);
         Accumulate(row);
@@ -410,17 +435,25 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         _segments.Clear();
         _hLines.Clear();
         _extraV.Clear();
+        _extraH.Clear();
         bool firstTablePage = _rowNumber == 0;
         if (firstTablePage || t.RepeatHeader)
         {
             var page = _page!;
-            if (_headerBg is { } hb) page.FillRect(_tableLeft, _y, _tableRight - _tableLeft, t.HeaderHeight, hb);
+            double hh = t.HeaderHeight * _lineCount;
+            if (_headerBg is { } hb) page.FillRect(_tableLeft, _y, _tableRight - _tableLeft, hh, hb);
             foreach (var c in _cols)
             {
                 var text = c.Header.Evaluate(this, default, false, ref _buf);
-                page.DrawText(text, c.X, _y, c.W, t.HeaderHeight, c.HeaderStyle);
+                page.DrawText(text, c.X, _y + c.Line * t.HeaderHeight, c.W, t.HeaderHeight, c.HeaderStyle);
             }
-            _y += t.HeaderHeight;
+            if (_lineCount > 1)
+            {
+                for (int l = 0; l < _lineCount; l++) _lineH[l] = t.HeaderHeight;
+                AddLineVerticals(_y, _lineH);
+                for (int l = 1; l < _lineCount; l++) _extraH.Add(_y + l * t.HeaderHeight);
+            }
+            _y += hh;
             _hLines.Add(_y);
         }
         _segStart = _tableTop;
@@ -444,7 +477,8 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         page.PathLine(_tableLeft, _y, _tableRight, _y);
         page.PathLine(_tableLeft, _tableTop, _tableLeft, _y);
         page.PathLine(_tableRight, _tableTop, _tableRight, _y);
-        if (t.VerticalLines)
+        foreach (var hy in _extraH) page.PathLine(_tableLeft, hy, _tableRight, hy);
+        if (t.VerticalLines && _lineCount == 1)
         {
             foreach (var (s, e) in _segments)
             {
@@ -471,7 +505,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
     /// <summary>ردیف تمام‌عرض (عنوان گروه، متن «داده‌ای وجود ندارد»).</summary>
     private void DrawFullRow(string text, TextStyle style, PdfColor? bg, double h, bool keepWithNext = false)
     {
-        EnsureSpace(h + (keepWithNext ? _table!.RowHeight : 0));
+        EnsureSpace(h + (keepWithNext ? _table!.RowHeight * _lineCount : 0));
         _segments.Add((_segStart, _y));
         var page = _page!;
         if (bg is { } b) page.FillRect(_tableLeft, _y, _tableRight - _tableLeft, h, b);
@@ -485,39 +519,62 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
     private void DrawTotalsRow(string label, AggregateScope scope)
     {
         var t = _table!;
-        double h = TotalsHeight;
+        double lh = TotalsHeight;
+        double h = lh * _lineCount;
         if (scope != AggregateScope.Page && _y + h > TableBottom + 0.01) BreakPage();
         _segments.Add((_segStart, _y));
         var page = _page!;
         if (_totalsBg is { } bg) page.FillRect(_tableLeft, _y, _tableRight - _tableLeft, h, bg);
-
-        int span = 0;
-        while (span < _cols.Length && _cols[span].Agg == AggregateKind.None) span++;
-        if (span == _cols.Length) span = _cols.Length; // بدون ستون جمع: برچسب در کل عرض
-        if (span > 0 && !string.IsNullOrEmpty(label))
-        {
-            double x1 = double.MaxValue, x2 = double.MinValue;
-            for (int i = 0; i < span; i++) { x1 = Math.Min(x1, _cols[i].X); x2 = Math.Max(x2, _cols[i].X + _cols[i].W); }
-            page.DrawText(label, x1, _y, x2 - x1, h, _totalsStyle!.Text.With(s => s.Align = HAlign.Center));
-            double edge = _t.RightToLeft ? x1 : x2;
-            if (span < _cols.Length) _extraV.Add((edge, _y, _y + h));
-        }
         var arr = scope switch { AggregateScope.Page => _aggPage, AggregateScope.Group => _aggGroup, _ => _aggReport };
-        for (int i = span; i < _cols.Length; i++)
+
+        for (int line = 0; line < _lineCount; line++)
         {
-            var c = _cols[i];
-            if (t.VerticalLines && i < _cols.Length - 1)
-                _extraV.Add((_t.RightToLeft ? c.X : c.X + c.W, _y, _y + h));
-            if (c.Agg == AggregateKind.None || c.AggIndex < 0) continue;
-            var v = arr[c.AggIndex].Get(c.Agg);
-            if (v == null) continue;
-            var spec = c.Agg == AggregateKind.Count ? FormatSpec.Get("N0") : c.Spec;
-            int n = ValueFormatter.WriteDecimal(v.Value, spec, ref _buf);
-            page.DrawText(_buf.AsSpan(0, n), c.X, _y, c.W, h, c.TotalsStyle);
+            double y = _y + line * lh;
+            var cols = _cols.Where(c => c.Line == line).ToList();
+            int span = 0;
+            while (span < cols.Count && cols[span].Agg == AggregateKind.None) span++;
+            if (span > 0)
+            {
+                double x1 = double.MaxValue, x2 = double.MinValue;
+                for (int i = 0; i < span; i++) { x1 = Math.Min(x1, cols[i].X); x2 = Math.Max(x2, cols[i].X + cols[i].W); }
+                if (line == 0 && !string.IsNullOrEmpty(label))
+                    page.DrawText(label, x1, y, x2 - x1, lh, _totalsStyle!.Text.With(s => s.Align = HAlign.Center));
+                if (span < cols.Count) _extraV.Add((_t.RightToLeft ? x1 : x2, y, y + lh));
+            }
+            for (int i = span; i < cols.Count; i++)
+            {
+                var c = cols[i];
+                if (t.VerticalLines && i < cols.Count - 1)
+                    _extraV.Add((_t.RightToLeft ? c.X : c.X + c.W, y, y + lh));
+                if (c.Agg == AggregateKind.None || c.AggIndex < 0) continue;
+                var v = arr[c.AggIndex].Get(c.Agg);
+                if (v == null) continue;
+                var spec = c.Agg == AggregateKind.Count ? FormatSpec.Get("N0") : c.Spec;
+                int n = ValueFormatter.WriteDecimal(v.Value, spec, ref _buf);
+                page.DrawText(_buf.AsSpan(0, n), c.X, y, c.W, lh, c.TotalsStyle);
+            }
         }
         _y += h;
         _hLines.Add(_y);
         _segStart = _y;
+    }
+
+    /// <summary>خطوط عمودی هر سطر از یک رکورد چندسطری.</summary>
+    private void AddLineVerticals(double top, double[] lineHeights)
+    {
+        if (!_table!.VerticalLines) return;
+        double y = top;
+        for (int l = 0; l < _lineCount; l++)
+        {
+            foreach (var c in _cols)
+            {
+                if (c.Line != l) continue;
+                double x = _t.RightToLeft ? c.X : c.X + c.W;
+                if (Math.Abs(x - _tableLeft) < 0.01 || Math.Abs(x - _tableRight) < 0.01) continue;
+                _extraV.Add((x, y, y + lineHeights[l]));
+            }
+            y += lineHeights[l];
+        }
     }
 
     /// <summary>پایان گزارش: ردیف‌های جمع، باند پایانی، پاورقی و بستن فایل.</summary>
@@ -706,6 +763,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
     {
         public ColumnDefinition Def = null!;
         public double X, W;
+        public int Line;
         public TextTemplate<T> Binding = null!;
         public TextTemplate<T> Header = null!;
         public FieldGetter<T>? Getter;

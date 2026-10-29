@@ -135,6 +135,21 @@ public class TemplateTests
     }
 
     [Fact]
+    public void Render_MultiLineRecords_WhenManyColumns()
+    {
+        var t = SimpleTemplate(t =>
+        {
+            for (int i = 0; i < 12; i++) t.Table!.Columns.Add(new ColumnDefinition { Header = "C" + i, Field = "Branch", Width = 40 });
+            t.Table!.MaxColumnsPerLine = 8;
+            t.Table.ShowPageTotals = true;
+        });
+        var single = Render(SimpleTemplate(), Rows(300)).PageCount;
+        var r = Render(t, Rows(300));
+        Assert.True(r.PageCount > single, "two lines per record need more pages");
+        Assert.Contains("TOTAL=45,150,000", r.AllText());
+    }
+
+    [Fact]
     public void Render_FromDictionaryRows_AndNestedFields()
     {
         var t = SimpleTemplate(t => t.Table!.Columns.Add(new ColumnDefinition { Header = "مشتری", Field = "Customer.Name" }));

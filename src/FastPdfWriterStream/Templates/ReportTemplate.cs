@@ -220,6 +220,12 @@ public sealed class TableDefinition
     /// <summary>کش آمدن ستون‌ها تا پهنای کامل صفحه.</summary>
     public bool FitWidth { get; set; } = true;
 
+    /// <summary>
+    /// اگر تعداد ستون‌های قابل‌مشاهده بیشتر از این عدد باشد، هر رکورد در چند سطر چیده می‌شود
+    /// (مثلا ۱۲ ← با ۲۰ ستون، دو سطر ۱۰ ستونی). صفر یعنی همیشه یک سطر.
+    /// </summary>
+    public int MaxColumnsPerLine { get; set; }
+
     public string? HeaderStyle { get; set; }
     public string? RowStyle { get; set; }
     public string? TotalsStyle { get; set; }
@@ -282,6 +288,8 @@ public sealed class ColumnDefinition
     public string? Overflow { get; set; }
     public string? Direction { get; set; }
     public bool Visible { get; set; } = true;
+    /// <summary>شمارهٔ سطر (۰، ۱، ...) در جدول‌های چندسطری؛ null یعنی خودکار.</summary>
+    public int? Line { get; set; }
 }
 
 public sealed class WatermarkDefinition

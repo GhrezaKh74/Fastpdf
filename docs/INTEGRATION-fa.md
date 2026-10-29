@@ -82,6 +82,9 @@ public class FastPdfReporter : ExportReporter<ExportModel, ExporReporttModel>,
         foreach (var col in template.Table!.Columns)
             if (col.Field != "RowNumber") col.Visible = allowed.Contains(col.Field);
 
+        // بیش از ۱۲ ستون ← هر رکورد در دو سطر (معادل جدول ۴ سطری گزارش پویا)
+        template.Table.MaxColumnsPerLine = 12;
+
         // ارز با اعشار (معادل ArzTypeModel.DecimalPoint / DivisionValue)
         if (datas.ArzTypeModel.DecimalPoint != 0)
         {
