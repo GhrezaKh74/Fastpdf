@@ -99,6 +99,7 @@ public sealed class ReportEngine
     public RenderResult Render<T>(ReportTemplate template, IEnumerable<T> rows, Stream output, object? parameters = null,
         CancellationToken cancellationToken = default)
     {
+        template = HideEmptyColumns(template, rows);
         using var r = Begin<T>(template, output, parameters, CountOf(rows), true, cancellationToken);
         foreach (var row in rows) r.AddRow(row);
         return r.Complete();
@@ -129,7 +130,7 @@ public sealed class ReportEngine
 
     /// <summary>تولید گزارش از DataTable.</summary>
     public RenderResult Render(ReportTemplate template, DataTable table, Stream output, object? parameters = null) =>
-        Render(template, table.Rows.Cast<DataRow>(), output, parameters);
+        Render(template, table.Rows.Cast<DataRow>().ToList(), output, parameters);
 
     /// <summary>تولید گزارش مستقیم از IDataReader (جریانی، بدون DataTable).</summary>
     public RenderResult Render(ReportTemplate template, IDataReader reader, Stream output, object? parameters = null,
@@ -145,6 +146,54 @@ public sealed class ReportEngine
     {
         using var r = Begin<NoRow>(template, output, parameters, 0, true);
         return r.Complete();
+    }
+
+    /// <summary>
+    /// اگر <see cref="TableDefinition.HideEmptyColumns"/> فعال باشد و داده در حافظه باشد، ستون‌های کاملا خالی را
+    /// در یک کپی از قالب مخفی می‌کند (قالب کش‌شده تغییر نمی‌کند).
+    /// </summary>
+    public static ReportTemplate HideEmptyColumns<T>(ReportTemplate template, IEnumerable<T> rows)
+    {
+        var table = template.Table;
+        if (table is not { HideEmptyColumns: true } || CountOf(rows) is null) return template;
+
+        var candidates = new List<(int Index, FieldGetter<T>[] Getters)>();
+        for (int i = 0; i < table.Columns.Count; i++)
+        {
+            var c = table.Columns[i];
+            if (!c.Visible || c.SpanLines || (c.Aggregate != null && !c.Aggregate.Equals("None", StringComparison.OrdinalIgnoreCase))) continue;
+            var fields = c.Details is { Count: > 0 }
+                ? c.Details.Select(d => d.Field).ToList()
+                : new List<string> { c.Field?.Trim() ?? "" };
+            if (fields.Any(f => f.Length == 0 || f.Contains('{') || f.Equals("RowNumber", StringComparison.OrdinalIgnoreCase) || f == "#"))
+                continue;
+            var getters = fields.Select(f => FieldAccess.Create<T>(f)).ToArray();
+            if (getters.Any(g => g == null)) continue;
+            candidates.Add((i, getters!));
+        }
+        if (candidates.Count == 0) return template;
+
+        var filled = new bool[candidates.Count];
+        int remaining = candidates.Count;
+        var buf = new char[64];
+        foreach (var row in rows)
+        {
+            for (int k = 0; k < candidates.Count; k++)
+            {
+                if (filled[k]) continue;
+                foreach (var g in candidates[k].Getters)
+                {
+                    int n = g.Write(row, FormatSpec.Default, ref buf);
+                    if (n > 0 && !buf.AsSpan(0, n).IsWhiteSpace()) { filled[k] = true; remaining--; break; }
+                }
+            }
+            if (remaining == 0) return template;
+        }
+
+        var copy = template.Clone();
+        for (int k = 0; k < candidates.Count; k++)
+            if (!filled[k]) copy.Table!.Columns[candidates[k].Index].Visible = false;
+        return copy;
     }
 
     private static long? CountOf<T>(IEnumerable<T> rows) => rows switch

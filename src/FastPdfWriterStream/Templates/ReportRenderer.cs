@@ -355,7 +355,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         var cols = _cols;
         for (int i = 0; i < cols.Length; i++) FormatCell(cols[i], row);
 
-        for (int l = 0; l < _lineCount; l++) _lineH[l] = _table.RowHeight;
+        for (int l = 0; l < _lineCount; l++) _lineH[l] = l == 0 ? _table.RowHeight : _table.SubLineHeight ?? _table.RowHeight;
         if (_hasWrap)
         {
             double maxLine = (TableBottom - _top - _table.HeaderHeight * _lineCount - 1) / _lineCount;
@@ -512,8 +512,9 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
             }
             if (_lineCount > 1)
             {
-                for (int l = 0; l < _lineCount; l++) _lineH[l] = t.HeaderHeight;
-                AddLineVerticals(_y, _lineH, separators: false);
+                var headerLines = new double[_lineCount];
+                Array.Fill(headerLines, t.HeaderHeight);
+                AddLineVerticals(_y, headerLines, separators: false);
                 var (fx1, fx2) = FlowRange();
                 for (int l = 1; l < _lineCount; l++) _extraH.Add((fx1, fx2, _y + l * t.HeaderHeight));
             }
@@ -593,16 +594,20 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
     {
         var t = _table!;
         double lh = TotalsHeight;
-        double h = lh * _lineCount;
+        // فقط سطرهایی که برچسب یا ستون جمع دارند (سطر جزئیات خالی رسم نمی‌شود)
+        var usedLines = Enumerable.Range(0, _lineCount)
+            .Where(l => l == 0 || _cols.Any(c => c.Line == l && !c.Span && c.Agg != AggregateKind.None)).ToArray();
+        double h = lh * usedLines.Length;
         if (scope != AggregateScope.Page && _y + h > TableBottom + 0.01) BreakPage();
         _segments.Add((_segStart, _y));
         var page = _page!;
         if (_totalsBg is { } bg) page.FillRect(_tableLeft, _y, _tableRight - _tableLeft, h, bg);
         var arr = scope switch { AggregateScope.Page => _aggPage, AggregateScope.Group => _aggGroup, _ => _aggReport };
 
-        for (int line = 0; line < _lineCount; line++)
+        for (int li = 0; li < usedLines.Length; li++)
         {
-            double y = _y + line * lh;
+            int line = usedLines[li];
+            double y = _y + li * lh;
             var cols = _cols.Where(c => c.Line == line).ToList();
             int span = 0;
             while (span < cols.Count && cols[span].Agg == AggregateKind.None) span++;

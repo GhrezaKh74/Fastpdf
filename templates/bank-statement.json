@@ -515,7 +515,8 @@
     "showGrandTotals": true,
     "grandTotalsLabel": "جمع کل",
     "showCarryForward": false,
-    "emptyText": "در بازه انتخابی تراکنشی یافت نشد"
+    "emptyText": "در بازه انتخابی تراکنشی یافت نشد",
+    "hideEmptyColumns": true
   },
   "reportFooter": {
     "height": 60,

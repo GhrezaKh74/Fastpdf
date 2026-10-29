@@ -171,6 +171,27 @@ public class TemplateTests
     }
 
     [Fact]
+    public void HideEmptyColumns_HidesOnlyColumnsEmptyInAllRows()
+    {
+        var t = SimpleTemplate(t =>
+        {
+            t.Table!.HideEmptyColumns = true;
+            t.Table.Columns.Add(new ColumnDefinition { Header = "شعبه", Field = "Branch" });
+            t.Table.Columns.Add(new ColumnDefinition { Header = "مشتری", Field = "Customer.Name" });
+        });
+        var rows = Rows(10).ToList();
+        foreach (var r in rows) r.Branch = "";
+        var result = ReportEngine.HideEmptyColumns(t, rows);
+        Assert.NotSame(t, result);
+        Assert.False(result.Table!.Columns.Single(c => c.Field == "Branch").Visible);
+        Assert.True(result.Table.Columns.Single(c => c.Field == "Customer.Name").Visible);
+        Assert.True(result.Table.Columns.Single(c => c.Field == "RowNumber").Visible);
+        Assert.True(t.Table!.Columns.Single(c => c.Field == "Branch").Visible); // قالب اصلی دست نخورده
+        // داده‌ی جریانی (غیر Collection) دو بار پیمایش نمی‌شود
+        Assert.Same(t, ReportEngine.HideEmptyColumns(t, rows.Select(r => r)));
+    }
+
+    [Fact]
     public void BankStatementWideTemplate_Renders()
     {
         var engine = Engine();

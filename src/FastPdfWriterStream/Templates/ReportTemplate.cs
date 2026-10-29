@@ -216,6 +216,9 @@ public sealed class TableDefinition
     public double HeaderHeight { get; set; } = 20;
     /// <summary>ارتفاع (حداقل) هر ردیف.</summary>
     public double RowHeight { get; set; } = 16;
+
+    /// <summary>ارتفاع سطرهای دوم به بعد یک رکورد چندسطری (مثلا سطر جزئیات با فونت ریزتر). null یعنی RowHeight.</summary>
+    public double? SubLineHeight { get; set; }
     public bool RepeatHeader { get; set; } = true;
     /// <summary>کش آمدن ستون‌ها تا پهنای کامل صفحه.</summary>
     public bool FitWidth { get; set; } = true;
@@ -225,6 +228,13 @@ public sealed class TableDefinition
     /// (مثلا ۱۲ ← با ۲۰ ستون، دو سطر ۱۰ ستونی). صفر یعنی همیشه یک سطر.
     /// </summary>
     public int MaxColumnsPerLine { get; set; }
+
+    /// <summary>
+    /// ستون‌هایی که در کل داده‌ی این گزارش خالی‌اند حذف شوند و بقیه پهن‌تر شوند.
+    /// فقط وقتی داده از قبل در حافظه است (List/Array/ICollection) اعمال می‌شود، چون یک بار پیمایش اضافه لازم دارد.
+    /// ستون‌های ردیف، جمع‌دار و عبارت‌ها هیچ‌وقت حذف نمی‌شوند.
+    /// </summary>
+    public bool HideEmptyColumns { get; set; }
 
     public string? HeaderStyle { get; set; }
     public string? RowStyle { get; set; }

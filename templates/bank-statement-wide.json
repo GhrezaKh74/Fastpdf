@@ -636,7 +636,7 @@
         "field": "",
         "width": 100,
         "align": "Start",
-        "fontSize": 7,
+        "fontSize": 6.5,
         "color": "#4A4A4A",
         "visible": true,
         "line": 1,
@@ -698,7 +698,7 @@
       }
     ],
     "headerHeight": 22,
-    "rowHeight": 15,
+    "rowHeight": 12.5,
     "repeatHeader": true,
     "fitWidth": true,
     "maxColumnsPerLine": 0,
@@ -721,7 +721,9 @@
     "emptyText": "در بازه انتخابی تراکنشی یافت نشد",
     "groupHeaderBackground": "#EDEDED",
     "showGroupTotals": false,
-    "groupTotalsLabel": "جمع گروه"
+    "groupTotalsLabel": "جمع گروه",
+    "hideEmptyColumns": true,
+    "subLineHeight": 9.5
   },
   "reportFooter": {
     "height": 60,

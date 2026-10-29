@@ -124,7 +124,7 @@
     'showGrandTotals', 'grandTotalsLabel', 'showCarryForward', 'carryForwardLabel', 'emptyText', 'groupBy',
     'groupHeaderText', 'groupHeaderBackground', 'showGroupTotals', 'groupTotalsLabel', 'header', 'field', 'format',
     'headerAlign', 'aggregate', 'negativeColor', 'visible', 'watermark', 'opacity', 'angle', 'parameters', 'fields',
-    'title', 'sample', 'maxColumnsPerLine', 'line', 'spanLines', 'details', 'detailSeparator', 'label'];
+    'title', 'sample', 'maxColumnsPerLine', 'line', 'spanLines', 'details', 'detailSeparator', 'label', 'hideEmptyColumns', 'subLineHeight'];
   const KEY_MAP = new Map(KNOWN_KEYS.map((k) => [k.toLowerCase(), k]));
   const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -3153,6 +3153,8 @@
       { k: 'repeatHeader', label: 'تکرار سرستون در هر صفحه', t: 'bool', def: true },
       { k: 'fitWidth', label: 'کشیدن تا پهنای صفحه', t: 'bool', def: true },
       { k: 'maxColumnsPerLine', label: 'حداکثر ستون در هر سطر', t: 'num', def: 0, min: 0, step: 1, int: true },
+      { k: 'hideEmptyColumns', label: 'حذف خودکار ستون‌های خالی', t: 'bool', def: false },
+      { k: 'subLineHeight', label: 'ارتفاع سطرهای دوم به بعد', t: 'num', min: 1, step: 0.5, ph: 'برابر ارتفاع ردیف' },
     ], 'tbl'),
     h('div', { class: 'hint' }, 'اگر تعداد ستون‌های قابل‌مشاهده بیشتر از «حداکثر ستون در هر سطر» باشد، هر رکورد در چند سطر چیده می‌شود (۰ = همیشه یک سطر). با تعیین «سطر» برای ستون‌ها می‌توان چیدمان را دستی مشخص کرد.')]));
     body.append(sec('tbl-look', 'ظاهر', formRows(get, [
