@@ -169,7 +169,7 @@ public sealed class ReportEngine
                 continue;
             var getters = fields.Select(f => FieldAccess.Create<T>(f)).ToArray();
             if (getters.Any(g => g == null)) continue;
-            candidates.Add((i, getters!));
+            candidates.Add((i, getters.Select(g => g!).ToArray()));
         }
         if (candidates.Count == 0) return template;
 

@@ -408,15 +408,16 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
     private void FormatDetails(Col c, T row)
     {
         _sb.Clear();
-        string sep = c.Def.DetailSeparator ?? "  •  ";
+        string sep = c.Def.DetailSeparator ?? " • ";
         foreach (var (label, getter, spec) in c.Details!)
         {
             if (getter == null) continue;
             int n = getter.Write(row, spec, ref _buf);
             if (n == 0 || _buf.AsSpan(0, n).IsWhiteSpace()) continue;
             if (_sb.Length > 0) _sb.Append(sep);
-            if (label.Length > 0) _sb.Append(label).Append(": ");
-            _sb.Append(_buf, 0, n);
+            // هر «عنوان: مقدار» یک واحد بدون شکستن است (فاصله‌های داخلش NBSP می‌شوند)
+            if (label.Length > 0) _sb.Append(label.Replace(' ', '\u00A0')).Append(":\u00A0");
+            for (int k = 0; k < n; k++) _sb.Append(_buf[k] == ' ' ? '\u00A0' : _buf[k]);
         }
         CopyTo(c, _sb.ToString());
     }

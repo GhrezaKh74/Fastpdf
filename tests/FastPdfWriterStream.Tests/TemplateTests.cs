@@ -191,11 +191,13 @@ public class TemplateTests
         Assert.Same(t, ReportEngine.HideEmptyColumns(t, rows.Select(r => r)));
     }
 
-    [Fact]
-    public void BankStatementWideTemplate_Renders()
+    [Theory]
+    [InlineData("bank-statement-wide")]
+    [InlineData("bank-statement-portrait")]
+    public void BankStatementWideTemplate_Renders(string name)
     {
         var engine = Engine();
-        var t = engine.LoadTemplate("bank-statement-wide");
+        var t = engine.LoadTemplate(name);
         var rows = Enumerable.Range(0, 100).Select(i => new Dictionary<string, object?>
         {
             ["TR0108"] = "14030512", ["desc_desc"] = "انتقال وجه", ["TR0105"] = 1000m * i,

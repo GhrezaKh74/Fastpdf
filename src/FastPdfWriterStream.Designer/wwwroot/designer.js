@@ -670,7 +670,7 @@
   /** Sample text for a data cell: bare field name or an expression with {..} tokens. */
   function cellSample(col, rowIdx) {
     if (Array.isArray(col.details) && col.details.length) {
-      const sep = col.detailSeparator != null ? col.detailSeparator : '  •  ';
+      const sep = col.detailSeparator != null ? col.detailSeparator : ' • ';
       return col.details.filter((d) => d && d.field).map((d) => {
         const v = sampleOf(d.field, rowIdx);
         return (d.label ? d.label + ': ' : '') + (v == null ? `{${d.field}}` : formatSample(v, d.format));
@@ -3269,7 +3269,7 @@
         if (items.length) c.details = items; else delete c.details;
       }, { coalesce: 'col.details.' + i });
     });
-    const sepInp = h('input', { type: 'text', value: col.detailSeparator == null ? '' : col.detailSeparator, placeholder: '  •  ', dataset: { fkey: 'col.detailSeparator' } });
+    const sepInp = h('input', { type: 'text', value: col.detailSeparator == null ? '' : col.detailSeparator, placeholder: ' • ', dataset: { fkey: 'col.detailSeparator' } });
     sepInp.addEventListener('input', () => mutate((tpl) => {
       const c = tpl.table && tpl.table.columns[i];
       if (!c) return;

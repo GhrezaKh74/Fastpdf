@@ -213,7 +213,7 @@ internal sealed class TextShaper
                     break;
                 }
                 width += w;
-                if (IsSpace(c)) lastBreak = i + 1;
+                if (IsSpace(c) && c != '\u00A0') lastBreak = i + 1; // NBSP: بدون شکستن
             }
             int end = i;
             int visibleEnd = end;
