@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>طراح گزارش PDF</title>
+  <link rel="stylesheet" href="designer.css">
+</head>
+<body>
+  <header id="toolbar" role="toolbar" aria-label="نوار ابزار">
+    <div class="tb-group brand">
+      <span class="logo" aria-hidden="true">PDF</span>
+      <div class="doc-title">
+        <span class="t1" id="docTitle">بدون نام</span>
+        <span class="t2" id="docSubtitle"></span>
+      </div>
+      <span class="dirty-mark" id="dirtyMark" title="تغییرات ذخیره‌نشده">● ذخیره نشده</span>
+    </div>
+
+    <div class="tb-group">
+      <button class="btn" id="btnNew" data-icon="file" title="قالب جدید"><span class="tb-label">جدید</span></button>
+      <button class="btn" id="btnOpen" data-icon="folder" title="باز کردن از سرور"><span class="tb-label">باز کردن</span></button>
+      <button class="btn" id="btnSave" data-icon="save" title="ذخیره روی سرور (Ctrl+S)"><span class="tb-label">ذخیره</span></button>
+      <button class="btn" id="btnSaveAs" data-icon="saveAs" title="ذخیره با نام جدید"><span class="tb-label">ذخیره با نام</span></button>
+    </div>
+
+    <div class="tb-group">
+      <button class="btn" id="btnImport" data-icon="upload" title="ورود فایل JSON"><span class="tb-label">ورود JSON</span></button>
+      <button class="btn" id="btnExport" data-icon="download" title="دریافت فایل JSON"><span class="tb-label">خروجی JSON</span></button>
+    </div>
+
+    <div class="tb-group">
+      <button class="btn icon-only" id="btnUndo" data-icon="undo" title="واگرد (Ctrl+Z)" aria-label="واگرد"></button>
+      <button class="btn icon-only" id="btnRedo" data-icon="redo" title="ازنو (Ctrl+Y)" aria-label="ازنو"></button>
+      <button class="btn icon-only danger" id="btnDelete" data-icon="trash" title="حذف انتخاب (Delete)" aria-label="حذف"></button>
+    </div>
+
+    <div class="tb-group">
+      <button class="btn icon-only" id="btnZoomOut" data-icon="zoomOut" title="کوچک‌نمایی" aria-label="کوچک‌نمایی"></button>
+      <span class="zoom-label" id="zoomLabel" title="بزرگ‌نمایی ۱۰۰٪">100%</span>
+      <button class="btn icon-only" id="btnZoomIn" data-icon="zoomIn" title="بزرگ‌نمایی" aria-label="بزرگ‌نمایی"></button>
+      <button class="btn icon-only" id="btnZoomFit" data-icon="fit" title="هم‌اندازهٔ پنجره" aria-label="هم‌اندازهٔ پنجره"></button>
+    </div>
+
+    <div class="tb-group">
+      <label class="tb-field" title="گام چسبیدن به شبکه (pt) — ۰ یعنی خاموش؛ با نگه‌داشتن Alt موقتاً غیرفعال می‌شود">
+        <span>شبکه</span>
+        <input type="number" id="snapInput" min="0" max="50" step="0.5" value="2">
+      </label>
+      <label class="tb-field" title="نمایش نقاط شبکه">
+        <input type="checkbox" id="gridToggle" checked>
+        <span>نقاط</span>
+      </label>
+    </div>
+
+    <div class="tb-group">
+      <label class="tb-field" title="منبع داده برای پیش‌نمایش">
+        <select id="dsSelect" aria-label="منبع داده"></select>
+      </label>
+      <label class="tb-field" title="تعداد ردیف‌های نمونه">
+        <span>ردیف</span>
+        <input type="number" id="rowsInput" min="0" max="100000" step="1" value="50">
+      </label>
+      <button class="btn primary" id="btnPreview" data-icon="eye" title="پیش‌نمایش PDF"><span class="tb-label">پیش‌نمایش PDF</span></button>
+    </div>
+
+    <span class="tb-spacer"></span>
+    <span class="server-badge" id="serverBadge">در حال اتصال…</span>
+  </header>
+
+  <main id="workspace">
+    <aside id="sidePanel" class="panel" aria-label="ابزارها و فیلدها">
+      <div class="tabs" role="tablist">
+        <button class="tab active" role="tab" data-tab="tools" id="tabTools">ابزارها</button>
+        <button class="tab" role="tab" data-tab="fields" id="tabFields">فیلدها</button>
+      </div>
+      <div class="panel-body" id="toolsPane"></div>
+      <div class="panel-body" id="fieldsPane" hidden></div>
+    </aside>
+
+    <section id="canvasArea" aria-label="بوم طراحی">
+      <div id="canvasScroll">
+        <div id="canvasInner">
+          <div id="page"></div>
+        </div>
+      </div>
+      <footer id="statusBar">
+        <span id="stPos" class="num"></span>
+        <span id="stSel"></span>
+        <span id="stPage"></span>
+      </footer>
+    </section>
+
+    <aside id="inspector" class="panel" aria-label="ویژگی‌ها">
+      <div class="insp-head" id="inspHead"></div>
+      <div class="insp-body" id="inspBody"></div>
+    </aside>
+  </main>
+
+  <div id="toasts" aria-live="polite"></div>
+  <div id="modalRoot"></div>
+
+  <input type="file" id="importFile" accept=".json,application/json" hidden>
+  <input type="file" id="imageFile" accept="image/*" hidden>
+
+  <datalist id="dl-fields"></datalist>
+  <datalist id="dl-formats"></datalist>
+  <datalist id="dl-fontfiles"></datalist>
+
+  <script src="designer.js"></script>
+</body>
+</html>
