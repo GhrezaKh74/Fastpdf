@@ -194,6 +194,7 @@ public class TemplateTests
     [Theory]
     [InlineData("bank-statement-wide")]
     [InlineData("bank-statement-portrait")]
+    [InlineData("bank-statement-portrait-full")]
     public void BankStatementWideTemplate_Renders(string name)
     {
         var engine = Engine();

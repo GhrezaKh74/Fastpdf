@@ -1,0 +1,913 @@
+{
+  "name": "bank-statement-portrait-full",
+  "description": "صورتحساب A4 عمودی: سطر اول همهٔ ستون‌ها تا PSP و نام، سطر دوم بقیهٔ اطلاعات (از شبا به بعد) فقط با مقادیر پر",
+  "version": 1,
+  "page": {
+    "size": "A4",
+    "landscape": false,
+    "marginLeft": 20,
+    "marginTop": 20,
+    "marginRight": 20,
+    "marginBottom": 18
+  },
+  "rightToLeft": true,
+  "digits": "Persian",
+  "fonts": [
+    {
+      "name": "Vazirmatn",
+      "path": "Vazirmatn-Regular.ttf",
+      "boldPath": "Vazirmatn-Bold.ttf"
+    }
+  ],
+  "defaultFont": "Vazirmatn",
+  "defaultFontSize": 8,
+  "styles": {
+    "title": {
+      "fontSize": 13,
+      "bold": true,
+      "color": "#1F3864",
+      "align": "Center"
+    },
+    "small": {
+      "fontSize": 8.5,
+      "color": "#595959"
+    },
+    "label": {
+      "fontSize": 8,
+      "bold": true,
+      "color": "#404040",
+      "align": "Start"
+    },
+    "value": {
+      "fontSize": 8,
+      "align": "Start"
+    },
+    "header": {
+      "fontSize": 8,
+      "bold": true,
+      "color": "#1F3864",
+      "align": "Center",
+      "overflow": "Wrap",
+      "minFontSize": 6.5,
+      "padding": 1.5
+    },
+    "row": {
+      "fontSize": 8,
+      "minFontSize": 6.5,
+      "padding": 1.5
+    },
+    "totals": {
+      "fontSize": 8,
+      "bold": true,
+      "padding": 1.5
+    },
+    "footer": {
+      "fontSize": 8,
+      "color": "#595959"
+    }
+  },
+  "reportHeader": {
+    "height": 133,
+    "elements": [
+      {
+        "type": "Image",
+        "name": "logo",
+        "x": 0,
+        "y": 0,
+        "width": 55,
+        "height": 38,
+        "source": "{Logo}",
+        "visibleWhen": "{Logo}"
+      },
+      {
+        "type": "Text",
+        "name": "bismillah",
+        "x": 187.64,
+        "y": 0,
+        "width": 180,
+        "height": 14,
+        "text": "بسمه تعالی",
+        "style": "small",
+        "align": "Center"
+      },
+      {
+        "type": "Text",
+        "name": "title",
+        "x": 127.64,
+        "y": 14,
+        "width": 300,
+        "height": 22,
+        "text": "{BankName} - صورتحساب سپرده",
+        "style": "title"
+      },
+      {
+        "type": "Rect",
+        "name": "infoBox",
+        "x": 0,
+        "y": 42,
+        "width": 555.28,
+        "height": 83,
+        "lineColor": "#9E9E9E",
+        "lineWidth": 0.5,
+        "cornerRadius": 4,
+        "background": "#FAFBFD"
+      },
+      {
+        "type": "Text",
+        "x": 467.28,
+        "y": 46,
+        "width": 84,
+        "height": 15,
+        "text": "تاریخ گزارش:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 374.19,
+        "y": 46,
+        "width": 91.09,
+        "height": 15,
+        "text": "{ReportDate}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 282.19,
+        "y": 46,
+        "width": 84,
+        "height": 15,
+        "text": "ساعت گزارش:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 189.09,
+        "y": 46,
+        "width": 91.09,
+        "height": 15,
+        "text": "{ReportTime}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 97.09,
+        "y": 46,
+        "width": 84,
+        "height": 15,
+        "text": "شماره حساب:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 4.0,
+        "y": 46,
+        "width": 91.09,
+        "height": 15,
+        "text": "{AccountNumber}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 467.28,
+        "y": 61,
+        "width": 84,
+        "height": 15,
+        "text": "از تاریخ:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 374.19,
+        "y": 61,
+        "width": 91.09,
+        "height": 15,
+        "text": "{FromDate}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 282.19,
+        "y": 61,
+        "width": 84,
+        "height": 15,
+        "text": "تا تاریخ:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 189.09,
+        "y": 61,
+        "width": 91.09,
+        "height": 15,
+        "text": "{ToDate}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 97.09,
+        "y": 61,
+        "width": 84,
+        "height": 15,
+        "text": "نوع ارز:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 4.0,
+        "y": 61,
+        "width": 91.09,
+        "height": 15,
+        "text": "{Currency}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 467.28,
+        "y": 76,
+        "width": 84,
+        "height": 15,
+        "text": "نام:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 374.19,
+        "y": 76,
+        "width": 91.09,
+        "height": 15,
+        "text": "{FirstName}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 282.19,
+        "y": 76,
+        "width": 84,
+        "height": 15,
+        "text": "نام خانوادگی:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 189.09,
+        "y": 76,
+        "width": 91.09,
+        "height": 15,
+        "text": "{LastName}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 97.09,
+        "y": 76,
+        "width": 84,
+        "height": 15,
+        "text": "کد ملی:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 4.0,
+        "y": 76,
+        "width": 91.09,
+        "height": 15,
+        "text": "{NationalCode}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 467.28,
+        "y": 91,
+        "width": 84,
+        "height": 15,
+        "text": "شعبه تعریف مشتری:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 374.19,
+        "y": 91,
+        "width": 91.09,
+        "height": 15,
+        "text": "{CustBranch}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 282.19,
+        "y": 91,
+        "width": 84,
+        "height": 15,
+        "text": "شعبه افتتاح:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 189.09,
+        "y": 91,
+        "width": 91.09,
+        "height": 15,
+        "text": "{Branch}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 97.09,
+        "y": 91,
+        "width": 84,
+        "height": 15,
+        "text": "تاریخ افتتاح:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 4.0,
+        "y": 91,
+        "width": 91.09,
+        "height": 15,
+        "text": "{OpenDate}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 467.28,
+        "y": 106,
+        "width": 84,
+        "height": 15,
+        "text": "شماره مشتری:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 374.19,
+        "y": 106,
+        "width": 91.09,
+        "height": 15,
+        "text": "{CustNumber}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 282.19,
+        "y": 106,
+        "width": 84,
+        "height": 15,
+        "text": "شعبه درخواست‌کننده:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 189.09,
+        "y": 106,
+        "width": 91.09,
+        "height": 15,
+        "text": "{BranchCodeReq}",
+        "style": "value"
+      },
+      {
+        "type": "Text",
+        "x": 97.09,
+        "y": 106,
+        "width": 84,
+        "height": 15,
+        "text": "فیلتر:",
+        "style": "label"
+      },
+      {
+        "type": "Text",
+        "x": 4.0,
+        "y": 106,
+        "width": 91.09,
+        "height": 15,
+        "text": "{Filter}",
+        "style": "value"
+      }
+    ]
+  },
+  "pageHeader": {
+    "height": 22,
+    "skipFirstPage": true,
+    "elements": [
+      {
+        "type": "Text",
+        "x": 255.28,
+        "y": 0,
+        "width": 300,
+        "height": 16,
+        "text": "{BankName} - صورتحساب حساب {AccountNumber}",
+        "style": "small",
+        "align": "Start"
+      },
+      {
+        "type": "Text",
+        "x": 0,
+        "y": 0,
+        "width": 240,
+        "height": 16,
+        "text": "{FirstName} {LastName}",
+        "style": "small",
+        "align": "End"
+      },
+      {
+        "type": "Line",
+        "x": 0,
+        "y": 18,
+        "width": 555.28,
+        "height": 0,
+        "lineColor": "#BFBFBF",
+        "lineWidth": 0.5
+      }
+    ]
+  },
+  "table": {
+    "columns": [
+      {
+        "header": "ردیف",
+        "field": "RowNumber",
+        "width": 24,
+        "align": "Center",
+        "spanLines": true
+      },
+      {
+        "header": "تاریخ",
+        "field": "TR0108",
+        "width": 46,
+        "format": "mask:####/##/##",
+        "align": "Center"
+      },
+      {
+        "header": "ساعت",
+        "field": "TR0121",
+        "width": 38,
+        "format": "mask:##:##:##",
+        "align": "Center"
+      },
+      {
+        "header": "شرح",
+        "field": "desc_desc",
+        "width": 82,
+        "align": "Start",
+        "overflow": "Wrap"
+      },
+      {
+        "header": "کد شعبه",
+        "field": "TR0116",
+        "width": 27,
+        "align": "Center"
+      },
+      {
+        "header": "کد کاربری",
+        "field": "UserCode",
+        "width": 34,
+        "align": "Center"
+      },
+      {
+        "header": "فیش/حواله",
+        "field": "TR0119",
+        "width": 42,
+        "align": "Center"
+      },
+      {
+        "header": "برداشت",
+        "field": "TR0105",
+        "width": 58,
+        "format": "#,0;(#,0);-",
+        "align": "Left",
+        "aggregate": "Sum"
+      },
+      {
+        "header": "واریز",
+        "field": "TR0106",
+        "width": 58,
+        "format": "#,0;(#,0);-",
+        "align": "Left",
+        "aggregate": "Sum"
+      },
+      {
+        "header": "مانده",
+        "field": "TR0110",
+        "width": 64,
+        "format": "#,0;-#,0;0",
+        "align": "Left",
+        "negativeColor": "#C00000"
+      },
+      {
+        "header": "اطلاعات اضافی",
+        "field": "TR0124",
+        "width": 42,
+        "align": "Start",
+        "overflow": "Wrap"
+      },
+      {
+        "header": "PSP",
+        "field": "Info",
+        "width": 46,
+        "align": "Center",
+        "overflow": "Wrap"
+      },
+      {
+        "header": "نام",
+        "field": "Name",
+        "width": 52,
+        "align": "Center",
+        "overflow": "Wrap"
+      },
+      {
+        "header": "سایر اطلاعات",
+        "width": 100,
+        "line": 1,
+        "align": "Start",
+        "fontSize": 7.5,
+        "color": "#404040",
+        "details": [
+          {
+            "label": "شماره شبا",
+            "field": "Sheba"
+          },
+          {
+            "label": "شناسه قبض/پرداخت",
+            "field": "PaymentCode"
+          },
+          {
+            "label": "کارت مبدا",
+            "field": "SourceCardNo"
+          },
+          {
+            "label": "کارت مقصد",
+            "field": "DestinationCardNo"
+          },
+          {
+            "label": "شماره پیگیری",
+            "field": "TrackingNo"
+          },
+          {
+            "label": "شماره سریال",
+            "field": "MachinSerialNo"
+          },
+          {
+            "label": "مرجع/قرارداد",
+            "field": "RefNo"
+          },
+          {
+            "label": "شناسه پرداخت",
+            "field": "PaymentId"
+          },
+          {
+            "label": "کدشعبه",
+            "field": "InfoBranchCode"
+          },
+          {
+            "label": "کدبانک",
+            "field": "InfoBankCode"
+          },
+          {
+            "label": "شماره پذیرنده",
+            "field": "PSPNo"
+          },
+          {
+            "label": "حساب مبدا/مقصد",
+            "field": "AccountNo_S_D"
+          }
+        ]
+      }
+    ],
+    "headerHeight": 28,
+    "rowHeight": 16,
+    "repeatHeader": true,
+    "fitWidth": true,
+    "maxColumnsPerLine": 0,
+    "headerStyle": "header",
+    "rowStyle": "row",
+    "totalsStyle": "totals",
+    "headerBackground": "#D9E1F2",
+    "altRowBackground": "#F5F7FA",
+    "totalsBackground": "#E7E6E6",
+    "borderColor": "#A6A6A6",
+    "borderWidth": 0.4,
+    "verticalLines": true,
+    "horizontalLines": true,
+    "showPageTotals": true,
+    "pageTotalsLabel": "جمع صفحه",
+    "showGrandTotals": true,
+    "grandTotalsLabel": "جمع کل",
+    "showCarryForward": false,
+    "carryForwardLabel": "نقل از صفحه قبل",
+    "emptyText": "در بازه انتخابی تراکنشی یافت نشد",
+    "groupHeaderBackground": "#EDEDED",
+    "showGroupTotals": false,
+    "groupTotalsLabel": "جمع گروه",
+    "hideEmptyColumns": true,
+    "subLineHeight": 12,
+    "subHeaderHeight": 0
+  },
+  "reportFooter": {
+    "height": 60,
+    "skipFirstPage": false,
+    "elements": [
+      {
+        "type": "Text",
+        "x": 0,
+        "y": 8,
+        "width": 555.28,
+        "height": 16,
+        "text": "تعداد تراکنش‌ها: {Count:N0}     جمع برداشت: {Sum(TR0105):N0}     جمع واریز: {Sum(TR0106):N0}",
+        "style": "value",
+        "bold": true
+      },
+      {
+        "type": "Text",
+        "x": 0,
+        "y": 28,
+        "width": 555.28,
+        "height": 16,
+        "text": "این صورتحساب به صورت سیستمی تولید شده و بدون مهر و امضا معتبر است.",
+        "style": "footer"
+      }
+    ]
+  },
+  "pageFooter": {
+    "height": 20,
+    "skipFirstPage": false,
+    "elements": [
+      {
+        "type": "Line",
+        "x": 0,
+        "y": 2,
+        "width": 555.28,
+        "height": 0,
+        "lineColor": "#BFBFBF",
+        "lineWidth": 0.5
+      },
+      {
+        "type": "Text",
+        "x": 187.64,
+        "y": 4,
+        "width": 180,
+        "height": 16,
+        "text": "صفحه {PageNumber} از {TotalPages}",
+        "style": "footer",
+        "align": "Center"
+      },
+      {
+        "type": "Text",
+        "x": 355.28,
+        "y": 4,
+        "width": 200,
+        "height": 16,
+        "text": "تاریخ چاپ: {Today:persian} {Now:HH:mm}",
+        "style": "footer",
+        "align": "Start"
+      }
+    ]
+  },
+  "parameters": [
+    {
+      "name": "BankName",
+      "title": "نام بانک",
+      "type": "string",
+      "sample": "بانک ملی ایران"
+    },
+    {
+      "name": "ReportDate",
+      "title": "تاریخ گزارش",
+      "type": "string",
+      "sample": "1403/05/12"
+    },
+    {
+      "name": "ReportTime",
+      "title": "ساعت گزارش",
+      "type": "string",
+      "sample": "14:25"
+    },
+    {
+      "name": "AccountNumber",
+      "title": "شماره حساب",
+      "type": "string",
+      "sample": "0105123456001"
+    },
+    {
+      "name": "FromDate",
+      "title": "از تاریخ",
+      "type": "string",
+      "sample": "1403/01/01"
+    },
+    {
+      "name": "ToDate",
+      "title": "تا تاریخ",
+      "type": "string",
+      "sample": "1403/05/12"
+    },
+    {
+      "name": "Currency",
+      "title": "نوع ارز",
+      "type": "string",
+      "sample": "ریال"
+    },
+    {
+      "name": "FirstName",
+      "title": "نام",
+      "type": "string",
+      "sample": "علی"
+    },
+    {
+      "name": "LastName",
+      "title": "نام خانوادگی",
+      "type": "string",
+      "sample": "رضایی"
+    },
+    {
+      "name": "NationalCode",
+      "title": "کد ملی",
+      "type": "string",
+      "sample": "0012345678"
+    },
+    {
+      "name": "CustBranch",
+      "title": "شعبه تعریف مشتری",
+      "type": "string",
+      "sample": "مرکزی (1001)"
+    },
+    {
+      "name": "Branch",
+      "title": "شعبه افتتاح حساب",
+      "type": "string",
+      "sample": "ونک (1234)"
+    },
+    {
+      "name": "OpenDate",
+      "title": "تاریخ افتتاح",
+      "type": "string",
+      "sample": "1398/02/15"
+    },
+    {
+      "name": "CustNumber",
+      "title": "شماره مشتری",
+      "type": "string",
+      "sample": "9876543"
+    },
+    {
+      "name": "BranchCodeReq",
+      "title": "کد شعبه درخواست کننده",
+      "type": "string",
+      "sample": "1001"
+    },
+    {
+      "name": "Filter",
+      "title": "فیلتر",
+      "type": "string",
+      "sample": "همه تراکنش‌ها"
+    },
+    {
+      "name": "Logo",
+      "title": "لوگو",
+      "type": "image",
+      "sample": ""
+    }
+  ],
+  "fields": [
+    {
+      "name": "TR0108",
+      "title": "تاریخ",
+      "type": "string",
+      "sample": "14030512"
+    },
+    {
+      "name": "TR0121",
+      "title": "ساعت",
+      "type": "string",
+      "sample": "142530"
+    },
+    {
+      "name": "desc_desc",
+      "title": "شرح",
+      "type": "string",
+      "sample": "انتقال وجه پایا"
+    },
+    {
+      "name": "TR0116",
+      "title": "کد شعبه",
+      "type": "number",
+      "sample": "1234"
+    },
+    {
+      "name": "UserCode",
+      "title": "کد کاربری",
+      "type": "string",
+      "sample": "U1024"
+    },
+    {
+      "name": "TR0119",
+      "title": "فیش/حواله",
+      "type": "string",
+      "sample": "889911"
+    },
+    {
+      "name": "TR0105",
+      "title": "برداشت",
+      "type": "number",
+      "sample": "2500000"
+    },
+    {
+      "name": "TR0106",
+      "title": "واریز",
+      "type": "number",
+      "sample": "0"
+    },
+    {
+      "name": "TR0110",
+      "title": "مانده",
+      "type": "number",
+      "sample": "125000000"
+    },
+    {
+      "name": "TR0124",
+      "title": "اطلاعات اضافی",
+      "type": "string",
+      "sample": "IR120170000000123456789012"
+    },
+    {
+      "name": "Info",
+      "title": "PSP",
+      "type": "string",
+      "sample": "شاپرک"
+    },
+    {
+      "name": "Name",
+      "title": "نام",
+      "type": "string",
+      "sample": "علی رضایی"
+    },
+    {
+      "name": "Sheba",
+      "title": "شماره شبا",
+      "type": "string",
+      "sample": "IR120170000000123456789012"
+    },
+    {
+      "name": "PaymentCode",
+      "title": "شناسه قبض/پرداخت",
+      "type": "string",
+      "sample": ""
+    },
+    {
+      "name": "SourceCardNo",
+      "title": "شماره کارت مبدا",
+      "type": "string",
+      "sample": "6037991234567890"
+    },
+    {
+      "name": "DestinationCardNo",
+      "title": "شماره کارت مقصد",
+      "type": "string",
+      "sample": ""
+    },
+    {
+      "name": "TrackingNo",
+      "title": "شماره پیگیری",
+      "type": "string",
+      "sample": "123456"
+    },
+    {
+      "name": "RefNo",
+      "title": "شماره مرجع/قرارداد",
+      "type": "string",
+      "sample": ""
+    },
+    {
+      "name": "MachinSerialNo",
+      "title": "شماره سریال",
+      "type": "string",
+      "sample": ""
+    },
+    {
+      "name": "PaymentId",
+      "title": "شناسه پرداخت",
+      "type": "string",
+      "sample": ""
+    },
+    {
+      "name": "InfoBranchCode",
+      "title": "کدشعبه",
+      "type": "string",
+      "sample": "1234"
+    },
+    {
+      "name": "InfoBankCode",
+      "title": "کدبانک",
+      "type": "string",
+      "sample": "017"
+    },
+    {
+      "name": "PSPNo",
+      "title": "شماره پذیرنده",
+      "type": "string",
+      "sample": ""
+    },
+    {
+      "name": "AccountNo_S_D",
+      "title": "حساب مبدا/مقصد",
+      "type": "string",
+      "sample": "0105123456002"
+    }
+  ]
+}

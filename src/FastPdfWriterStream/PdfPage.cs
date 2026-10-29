@@ -393,8 +393,21 @@ public sealed class PdfPage
         double pad = style.PaddingTop + style.PaddingBottom;
         if (style.Overflow != TextOverflow.Wrap || text.IsEmpty) return lineH + pad;
         double aw = Math.Max(1, width - style.PaddingLeft - style.PaddingRight);
-        int maxUnits = (int)(aw / (font.Scale * style.Size));
-        writer.Shaper.ShapeWrapped(font, text, style.Direction, style.Digits ?? writer.Options.Digits, writer.Options.RightToLeft, maxUnits, writer.LineScratch);
+        var digits = style.Digits ?? writer.Options.Digits;
+        bool rtl = writer.Options.RightToLeft;
+        // همان قاعدهٔ DrawText: کلمهٔ بلندتر از عرض باعث کوچک شدن فونت می‌شود، نه شکستن کلمه
+        double size = style.Size;
+        int widest = 0, start = 0;
+        for (int i = 0; i <= text.Length; i++)
+        {
+            if (i < text.Length && text[i] != ' ' && text[i] != '\n') continue;
+            if (i > start) widest = Math.Max(widest, writer.Shaper.ShapeLine(font, text[start..i], style.Direction, digits, rtl).Width);
+            start = i + 1;
+        }
+        if (widest > 0 && widest * font.Scale * size > aw) size = Math.Max(style.MinSize, aw / (widest * font.Scale));
+        lineH = font.LineHeight(size) * style.LineSpacing;
+        int maxUnits = (int)(aw / (font.Scale * size));
+        writer.Shaper.ShapeWrapped(font, text, style.Direction, digits, rtl, maxUnits, writer.LineScratch);
         return Math.Max(1, writer.LineScratch.Count) * lineH + pad;
     }
 
@@ -424,6 +437,9 @@ public sealed class PdfPage
 
         if (style.Overflow == TextOverflow.Wrap)
         {
+            // هیچ کلمه‌ای وسطش شکسته نشود: اگر بلندترین کلمه در عرض جا نشود، فونت کوچک می‌شود
+            double widest = WidestWordUnits(font, text, style.Direction, digits, docRtl) * font.Scale;
+            if (widest * size > aw && widest > 0) size = Math.Max(style.MinSize, aw / widest);
             var lines = _writer.LineScratch;
             double lineH, total;
             while (true)
@@ -512,6 +528,23 @@ public sealed class PdfPage
 
     public double DrawText(string? text, double x, double y, double w, double h, TextStyle style) =>
         text == null ? 0 : DrawText(text.AsSpan(), x, y, w, h, style);
+
+    /// <summary>عرض بلندترین کلمه (واحد فونت) — کلمه‌ها با فاصلهٔ معمولی جدا می‌شوند، NBSP جزو کلمه است.</summary>
+    private int WidestWordUnits(PdfFont font, ReadOnlySpan<char> text, TextDirection dir, DigitStyle digits, bool docRtl)
+    {
+        int widest = 0, start = 0;
+        for (int i = 0; i <= text.Length; i++)
+        {
+            if (i < text.Length && text[i] != ' ' && text[i] != '\n') continue;
+            if (i > start)
+            {
+                var w = _writer.Shaper.ShapeLine(font, text[start..i], dir, digits, docRtl).Width;
+                if (w > widest) widest = w;
+            }
+            start = i + 1;
+        }
+        return widest;
+    }
 
     private void Underline(double x, double baseline, double width, PdfFont font, double size, PdfColor color)
     {
