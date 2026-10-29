@@ -586,7 +586,7 @@
     "borderWidth": 0.4,
     "verticalLines": true,
     "horizontalLines": true,
-    "showPageTotals": true,
+    "showPageTotals": false,
     "pageTotalsLabel": "جمع صفحه",
     "showGrandTotals": true,
     "grandTotalsLabel": "جمع کل",

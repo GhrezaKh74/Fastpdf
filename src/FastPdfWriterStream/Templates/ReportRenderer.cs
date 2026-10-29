@@ -37,6 +37,9 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
     private readonly bool _hasWrap;
     private readonly int _lineCount = 1;      // تعداد سطر هر رکورد (برای ستون‌های زیاد)
     private readonly double[] _lineH = new double[1];
+    private readonly double[] _pendingLineH = new double[1];
+    private decimal?[] _pendingAgg = Array.Empty<decimal?>();
+    private bool _hasPending;
     private readonly ResolvedStyle? _headerStyle, _rowStyle, _totalsStyle, _groupStyle;
     private readonly PdfColor? _headerBg, _altBg, _totalsBg, _groupBg;
     private readonly PdfColor _borderColor;
@@ -153,6 +156,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
                 _lineCount = visible.Count == 0 ? 1 : lineOf.Max() + 1;
                 if (_lineCount == 1) Array.Clear(spans);
                 _lineH = new double[_lineCount];
+                _pendingLineH = new double[_lineCount];
 
                 // شبکهٔ خانه‌ها (slot): در جدول چندسطری، ستون‌های هر سطر دقیقا زیر ستون‌های سطر قبل قرار می‌گیرند
                 var spanIdx = Enumerable.Range(0, visible.Count).Where(i => spans[i]).ToList();
@@ -252,6 +256,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
             _aggReport = new AggAcc[_aggFields.Count];
             _aggPage = new AggAcc[_aggFields.Count];
             _aggGroup = new AggAcc[_aggFields.Count];
+            _pendingAgg = new decimal?[_aggFields.Count];
             for (int i = 0; i < _aggFields.Count; i++) { _aggReport[i].Reset(); _aggPage[i].Reset(); _aggGroup[i].Reset(); }
 
             if (expectedRows is > 0 && _table != null)
@@ -333,6 +338,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         if (!_started) StartReport();
         if ((_rowNumber & 255) == 0) _ct.ThrowIfCancellationRequested();
         if (_table == null) { _rowNumber++; Accumulate(row); return; }
+        FlushPending(0);
 
         // گروه‌بندی
         if (_groupGetter != null)
@@ -341,6 +347,8 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
             var key = _buf.AsSpan(0, len);
             if (_groupKeyLen < 0 || !key.SequenceEqual(_groupKey.AsSpan(0, _groupKeyLen)))
             {
+                // آخرین ردیف گروه با «جمع گروه» در یک صفحه بماند
+                FlushPending(_groupKeyLen >= 0 && _table.ShowGroupTotals ? TotalsRowHeight() : 0);
                 if (_groupKeyLen >= 0 && _table.ShowGroupTotals) DrawTotalsRow(_table.GroupTotalsLabel, AggregateScope.Group);
                 for (int i = 0; i < _aggGroup.Length; i++) _aggGroup[i].Reset();
                 if (_groupKey.Length < len) _groupKey = new char[len * 2];
@@ -372,9 +380,32 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
                 if (c.Line == l && !c.Span && c.Len > 0) { empty = false; break; }
             if (empty) _lineH[l] = 0;
         }
+        // ردیف رسم نمی‌شود تا ردیف بعدی (یا پایان گزارش) برسد؛ این‌طور آخرین ردیف می‌تواند
+        // همراه «جمع کل» به صفحهٔ بعد برود و ردیف جمع تنها در یک صفحه نماند.
+        for (int i = 0; i < cols.Length; i++)
+        {
+            var c = cols[i];
+            (c.Buf, c.PBuf) = (c.PBuf, c.Buf);
+            c.PLen = c.Len;
+        }
+        Array.Copy(_lineH, _pendingLineH, _lineCount);
+        for (int i = 0; i < _aggGetters.Count; i++)
+        {
+            var g = _aggGetters[i];
+            _pendingAgg[i] = g == null ? 1 : g.GetNumber(row);
+        }
+        _hasPending = true;
+    }
+
+    /// <summary>رسم ردیف معلق؛ اگر <paramref name="keepWith"/> &gt; 0 باشد، آن مقدار فضا هم بعد از ردیف تضمین می‌شود.</summary>
+    private void FlushPending(double keepWith)
+    {
+        if (!_hasPending) return;
+        _hasPending = false;
+        var cols = _cols;
         double h = 0;
-        for (int l = 0; l < _lineCount; l++) h += _lineH[l];
-        EnsureSpace(h);
+        for (int l = 0; l < _lineCount; l++) h += _pendingLineH[l];
+        EnsureSpace(h + keepWith);
 
         var page = _page!;
         if (_altBg is { } alt && _altRow) page.FillRect(_tableLeft, _y, _tableRight - _tableLeft, h, alt);
@@ -382,16 +413,32 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         for (int i = 0; i < cols.Length; i++)
         {
             var c = cols[i];
-            if (c.Len == 0) continue;
-            double cy = _y, ch = c.Span ? h : _lineH[c.Line];
-            if (!c.Span) for (int l = 0; l < c.Line; l++) cy += _lineH[l];
-            var style = c.NegativeStyle != null && (c.Buf[0] == '-' || c.Buf[0] == '(') ? c.NegativeStyle : c.Style.Text;
-            page.DrawText(c.Buf.AsSpan(0, c.Len), c.X, cy, c.W, ch, style);
+            if (c.PLen == 0) continue;
+            double cy = _y, ch = c.Span ? h : _pendingLineH[c.Line];
+            if (!c.Span) for (int l = 0; l < c.Line; l++) cy += _pendingLineH[l];
+            var style = c.NegativeStyle != null && (c.PBuf[0] == '-' || c.PBuf[0] == '(') ? c.NegativeStyle : c.Style.Text;
+            page.DrawText(c.PBuf.AsSpan(0, c.PLen), c.X, cy, c.W, ch, style);
         }
-        if (_lineCount > 1) AddLineVerticals(_y, _lineH, separators: true);
+        if (_lineCount > 1) AddLineVerticals(_y, _pendingLineH, separators: true);
         _y += h;
-        if (_table.HorizontalLines) _hLines.Add(_y);
-        Accumulate(row);
+        if (_table!.HorizontalLines) _hLines.Add(_y);
+        for (int i = 0; i < _pendingAgg.Length; i++)
+        {
+            var v = _pendingAgg[i];
+            if (!v.HasValue) continue;
+            _aggReport[i].Add(v.Value);
+            _aggPage[i].Add(v.Value);
+            _aggGroup[i].Add(v.Value);
+        }
+    }
+
+    /// <summary>ارتفاع یک ردیف جمع (فقط سطرهایی که برچسب یا ستون جمع دارند).</summary>
+    private double TotalsRowHeight()
+    {
+        int lines = 0;
+        for (int l = 0; l < _lineCount; l++)
+            if (l == 0 || _cols.Any(c => c.Line == l && !c.Span && c.Agg != AggregateKind.None)) lines++;
+        return TotalsHeight * lines;
     }
 
     private void FormatCell(Col c, T row)
@@ -700,11 +747,15 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         var t = _table;
         if (t != null)
         {
+            double keep = 0;
+            if (_groupGetter != null && t.ShowGroupTotals) keep += TotalsRowHeight();
+            if (t.ShowGrandTotals) keep += TotalsRowHeight();
+            FlushPending(keep);
             if (_rowNumber == 0 && !string.IsNullOrEmpty(t.EmptyText))
                 DrawFullRow(t.EmptyText, _rowStyle!.Text.With(s => s.Align = HAlign.Center), null, Math.Max(t.RowHeight, 20));
             if (_groupGetter != null && _rowNumber > 0 && t.ShowGroupTotals)
                 DrawTotalsRow(t.GroupTotalsLabel, AggregateScope.Group);
-            if (t.ShowGrandTotals && _y + TotalsHeight > TableBottom + 0.01) BreakPage();
+            if (t.ShowGrandTotals && _y + TotalsRowHeight() > TableBottom + 0.01) BreakPage();
             CloseTablePage(final: true);
         }
         _rowsPhase = false;
@@ -893,6 +944,8 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         public int AggIndex = -1;
         public char[] Buf = new char[64];
         public int Len;
+        public char[] PBuf = new char[64]; // ردیف معلق (هنوز رسم‌نشده)
+        public int PLen;
     }
 
     private struct AggAcc

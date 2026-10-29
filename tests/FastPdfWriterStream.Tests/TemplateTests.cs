@@ -95,6 +95,18 @@ public class TemplateTests
     }
 
     [Fact]
+    public void GrandTotals_NeverAloneOnLastPage()
+    {
+        var t = SimpleTemplate(t => t.ReportFooter = null);
+        for (int n = 1; n <= 140; n++)
+        {
+            var r = Render(t, Rows(n));
+            // صفحه‌ای که «جمع کل» دارد باید دست‌کم یک ردیف داده (با تاریخ) هم داشته باشد
+            Assert.True(r.PageText(r.PageCount - 1).Contains("1403/05/12"), $"rows={n}: grand total alone on last page");
+        }
+    }
+
+    [Fact]
     public void Render_EmptyData_ShowsEmptyText()
     {
         var r = Render(SimpleTemplate(), Array.Empty<Row>());
