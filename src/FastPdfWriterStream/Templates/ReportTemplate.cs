@@ -207,6 +207,12 @@ public sealed class ElementDefinition
 
     /// <summary>اگر عبارت خالی/false/0 شود عنصر رسم نمی‌شود. مثال: "{ShowLogo}"</summary>
     public string? VisibleWhen { get; set; }
+
+    /// <summary>
+    /// وقتی عنصر با VisibleWhen پنهان شود، این مقدار از ارتفاع باند کم و عناصر پایین‌تر به همین اندازه بالا می‌روند
+    /// (مثلا کادر «فیلتر اعمال‌شده» که فقط گاهی وجود دارد).
+    /// </summary>
+    public double CollapseHeight { get; set; }
 }
 
 public sealed class TableDefinition
@@ -303,6 +309,11 @@ public sealed class ColumnDefinition
     public bool Visible { get; set; } = true;
     /// <summary>شمارهٔ سطر (۰، ۱، ...) در جدول‌های چندسطری؛ null یعنی خودکار.</summary>
     public int? Line { get; set; }
+    /// <summary>
+    /// پهنای ثابت (point): با fitWidth کش نمی‌آید و فضای اضافه به ستون‌های دیگر می‌رسد.
+    /// مناسب ستون‌هایی با طول ثابت مثل تاریخ، ساعت و ردیف.
+    /// </summary>
+    public bool FixedWidth { get; set; }
     /// <summary>در جدول چندسطری، این ستون تمام ارتفاع رکورد را می‌گیرد (مثلا «ردیف» یا «تاریخ»).</summary>
     public bool SpanLines { get; set; }
     /// <summary>

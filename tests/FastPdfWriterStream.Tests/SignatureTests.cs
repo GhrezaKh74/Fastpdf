@@ -64,6 +64,24 @@ public class SignatureTests
     }
 
     [Fact]
+    public void ReportEngine_SignsTemplateReports()
+    {
+        using var cert = SelfSigned();
+        var engine = new FastPdfWriterStream.Templates.ReportEngine(new() { FontsDirectory = TestFonts.FontsDir, TemplatesDirectory = TestFonts.TemplatesDir });
+        var t = engine.LoadTemplate("bank-statement");
+        var path = Path.Combine(Path.GetTempPath(), $"signed-report-{Guid.NewGuid():N}.pdf");
+        try
+        {
+            var rows = Enumerable.Range(0, 50).Select(i => new Dictionary<string, object?> { ["TR0108"] = "14030512", ["TR0105"] = 1000m * i });
+            engine.Render(t, rows.ToList(), path, new { BankName = "بانک" }, signature: new PdfSignatureOptions(cert));
+            var bytes = File.ReadAllBytes(path);
+            new PdfTestReader(bytes);
+            Assert.Contains("/SubFilter /adbe.pkcs7.detached", Encoding.Latin1.GetString(bytes));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public void Signature_RequiresSeekableReadableStream()
     {
         using var cert = SelfSigned();

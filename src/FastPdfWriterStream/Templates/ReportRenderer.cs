@@ -68,7 +68,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
     private bool _altRow;
 
     internal ReportRenderer(ReportEngine engine, ReportTemplate template, Stream output, object? parameters,
-        long? expectedRows, CancellationToken ct, bool leaveOpen)
+        long? expectedRows, CancellationToken ct, bool leaveOpen, PdfSignatureOptions? signature = null)
     {
         _engine = engine;
         _t = template;
@@ -86,7 +86,8 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
             CompressionLevel = opt.CompressionLevel,
             ParallelCompression = opt.ParallelCompression,
             Title = template.Name,
-            Creator = "FastPdfWriterStream Report Engine"
+            Creator = "FastPdfWriterStream Report Engine",
+            Signature = signature
         });
 
         try
@@ -164,19 +165,36 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
                     .Select(l => Enumerable.Range(0, visible.Count).Where(i => !spans[i] && lineOf[i] == l).ToList()).ToList();
                 int flowSlots = perLineIdx.Max(x => x.Count);
                 var slotW = new double[spanIdx.Count + flowSlots];
-                for (int k = 0; k < spanIdx.Count; k++) slotW[k] = Math.Max(1, visible[spanIdx[k]].Width);
+                var slotFixed = new bool[slotW.Length];
+                for (int k = 0; k < spanIdx.Count; k++)
+                {
+                    slotW[k] = Math.Max(1, visible[spanIdx[k]].Width);
+                    slotFixed[k] = visible[spanIdx[k]].FixedWidth;
+                }
                 for (int k = 0; k < flowSlots; k++)
-                    slotW[spanIdx.Count + k] = perLineIdx.Where(x => k < x.Count).Max(x => Math.Max(1, visible[x[k]].Width));
+                {
+                    // ستونی که آخرین ستون یک سطر کوتاه است تا انتها کش می‌آید و نباید پهنای اسلات را تعیین کند
+                    var inSlot = perLineIdx.Where(x => k < x.Count && !(k == x.Count - 1 && x.Count < flowSlots))
+                        .Select(x => visible[x[k]]).ToList();
+                    if (inSlot.Count == 0) inSlot = perLineIdx.Where(x => k < x.Count).Select(x => visible[x[k]]).ToList();
+                    slotW[spanIdx.Count + k] = inSlot.Max(c => Math.Max(1, c.Width));
+                    slotFixed[spanIdx.Count + k] = inSlot.Any(c => c.FixedWidth);
+                }
                 double sum = Math.Max(1, slotW.Sum());
+                double fixedSum = slotW.Where((w, k) => slotFixed[k]).Sum();
                 double tableW = _table.FitWidth ? _contentW : Math.Min(_contentW, sum);
-                double scale = tableW / sum;
+                // ستون‌های با پهنای ثابت کش نمی‌آیند؛ بقیه فضای باقی‌مانده را به نسبت می‌گیرند
+                double flexSum = sum - fixedSum;
+                double scale = flexSum > 0 ? Math.Max(0.05, (tableW - fixedSum) / flexSum) : 1;
+                double fixedScale = flexSum > 0 || fixedSum <= 0 ? 1 : tableW / fixedSum;
+                if (fixedSum > tableW) { scale = fixedScale = tableW / sum; }
                 _tableLeft = template.RightToLeft ? _left + _contentW - tableW : _left;
                 _tableRight = _tableLeft + tableW;
                 var slotX = new double[slotW.Length];
                 double cur = template.RightToLeft ? _tableRight : _tableLeft;
                 for (int k = 0; k < slotW.Length; k++)
                 {
-                    slotW[k] *= scale;
+                    slotW[k] *= slotFixed[k] ? fixedScale : scale;
                     if (template.RightToLeft) { cur -= slotW[k]; slotX[k] = cur; }
                     else { slotX[k] = cur; cur += slotW[k]; }
                 }
@@ -525,13 +543,11 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         if (_t.Watermark is { Text.Length: > 0 } wm) DrawWatermark(wm);
         if (_pageHeader != null && !(_pageHeader.Def.SkipFirstPage && _page.Number == 1))
         {
-            DrawBand(_pageHeader, _y);
-            _y += _pageHeader.Height;
+            _y += DrawBand(_pageHeader, _y);
         }
         if (_page.Number == 1 && _reportHeader != null)
         {
-            DrawBand(_reportHeader, _y);
-            _y += _reportHeader.Height;
+            _y += DrawBand(_reportHeader, _y);
         }
         if (_table != null && _rowsPhase) OpenTable();
     }
@@ -766,8 +782,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
                 EndPage();
                 StartPage();
             }
-            DrawBand(_reportFooter, _y);
-            _y += _reportFooter.Height;
+            _y += DrawBand(_reportFooter, _y);
         }
         EndPage();
         _pdf.Close();
@@ -822,19 +837,34 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         return cb;
     }
 
-    private void DrawBand(CompiledBand band, double top)
+    /// <summary>رسم باند؛ ارتفاع واقعی برگردانده می‌شود (عناصر پنهانِ دارای collapseHeight فضای خود را آزاد می‌کنند).</summary>
+    private double DrawBand(CompiledBand band, double top)
     {
         var page = _page!;
-        if (band.Background is { } bg) page.FillRect(_left, top, _contentW, band.Height, bg);
-        foreach (var e in band.Elements)
+        var els = band.Elements;
+        var visible = new bool[els.Count];
+        double collapsed = 0;
+        for (int i = 0; i < els.Count; i++)
         {
+            visible[i] = true;
+            if (els[i].Visible == null) continue;
+            var v = els[i].Visible!.Evaluate(this, default, false, ref _buf).Trim();
+            visible[i] = !(v.Length == 0 || v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase));
+            if (!visible[i]) collapsed += Math.Max(0, els[i].Def.CollapseHeight);
+        }
+        double height = Math.Max(0, band.Height - collapsed);
+        if (band.Background is { } bg) page.FillRect(_left, top, _contentW, height, bg);
+        for (int i = 0; i < els.Count; i++)
+        {
+            if (!visible[i]) continue;
+            var e = els[i];
             var d = e.Def;
-            if (e.Visible != null)
-            {
-                var v = e.Visible.Evaluate(this, default, false, ref _buf).Trim();
-                if (v.Length == 0 || v == "0" || v.Equals("false", StringComparison.OrdinalIgnoreCase)) continue;
-            }
-            double x = _left + d.X, y = top + d.Y, w = d.Width, h = d.Height;
+            // جابه‌جایی به بالا به اندازهٔ عناصر پنهانِ بالاتر
+            double shift = 0;
+            if (collapsed > 0)
+                for (int k = 0; k < els.Count; k++)
+                    if (!visible[k] && els[k].Def.CollapseHeight > 0 && els[k].Def.Y < d.Y) shift += els[k].Def.CollapseHeight;
+            double x = _left + d.X, y = top + d.Y - shift, w = d.Width, h = d.Height;
             switch (e.Kind)
             {
                 case "line":
@@ -860,6 +890,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
                     break;
             }
         }
+        return height;
     }
 
     private static void DrawBorder(PdfPage page, ResolvedStyle s, double x, double y, double w, double h)

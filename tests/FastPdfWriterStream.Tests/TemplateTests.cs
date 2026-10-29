@@ -107,6 +107,24 @@ public class TemplateTests
     }
 
     [Fact]
+    public void CollapseHeight_RemovesSpaceOfHiddenElements()
+    {
+        ReportTemplate T() => SimpleTemplate(t =>
+        {
+            t.ReportHeader!.Height = 80;
+            t.ReportHeader.Elements.Add(new ElementDefinition { Type = "Rect", Y = 30, Height = 30, CollapseHeight = 34, VisibleWhen = "{Filter}" });
+            t.ReportHeader.Elements.Add(new ElementDefinition { Text = "BELOW", Y = 64, Width = 200, Height = 14, Direction = "LeftToRight" });
+        });
+        int Pages(string filter) => Render(T(), Rows(60), new { Title = "x", Filter = filter }).PageCount;
+        // بدون فیلتر جای کادر آزاد می‌شود ← ردیف بیشتری در صفحهٔ اول جا می‌شود
+        var with = Render(T(), Rows(29), new { Title = "x", Filter = "f" });
+        var without = Render(T(), Rows(29), new { Title = "x", Filter = "" });
+        Assert.True(with.PageCount >= without.PageCount);
+        Assert.Contains("BELOW", without.AllText());
+        Assert.True(Pages("") <= Pages("f"));
+    }
+
+    [Fact]
     public void Render_EmptyData_ShowsEmptyText()
     {
         var r = Render(SimpleTemplate(), Array.Empty<Row>());

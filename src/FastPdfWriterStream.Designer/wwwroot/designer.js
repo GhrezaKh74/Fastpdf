@@ -118,13 +118,13 @@
     'background', 'align', 'vAlign', 'overflow', 'direction', 'padding', 'minFontSize', 'lineSpacing', 'border',
     'sides', 'dashed', 'radius', 'reportHeader', 'pageHeader', 'table', 'reportFooter', 'pageFooter', 'skipFirstPage',
     'elements', 'type', 'x', 'y', 'text', 'style', 'lineColor', 'lineWidth', 'cornerRadius', 'source',
-    'keepAspectRatio', 'visibleWhen', 'columns', 'headerHeight', 'rowHeight', 'repeatHeader', 'fitWidth',
+    'keepAspectRatio', 'visibleWhen', 'collapseHeight', 'columns', 'headerHeight', 'rowHeight', 'repeatHeader', 'fitWidth',
     'headerStyle', 'rowStyle', 'totalsStyle', 'headerBackground', 'altRowBackground', 'totalsBackground',
     'borderColor', 'borderWidth', 'verticalLines', 'horizontalLines', 'showPageTotals', 'pageTotalsLabel',
     'showGrandTotals', 'grandTotalsLabel', 'showCarryForward', 'carryForwardLabel', 'emptyText', 'groupBy',
     'groupHeaderText', 'groupHeaderBackground', 'showGroupTotals', 'groupTotalsLabel', 'header', 'field', 'format',
     'headerAlign', 'aggregate', 'negativeColor', 'visible', 'watermark', 'opacity', 'angle', 'parameters', 'fields',
-    'title', 'sample', 'maxColumnsPerLine', 'line', 'spanLines', 'details', 'detailSeparator', 'label', 'hideEmptyColumns', 'subLineHeight', 'subHeaderHeight'];
+    'title', 'sample', 'maxColumnsPerLine', 'line', 'spanLines', 'details', 'detailSeparator', 'label', 'hideEmptyColumns', 'subLineHeight', 'subHeaderHeight', 'fixedWidth'];
   const KEY_MAP = new Map(KNOWN_KEYS.map((k) => [k.toLowerCase(), k]));
   const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -1071,19 +1071,29 @@
     for (let l = 0; l < lineCount; l++) perLine.push(vis.map((x, k) => k).filter((k) => !span[k] && lineOf[k] === l));
     const flowSlots = Math.max(0, ...perLine.map((a) => a.length));
     const slotW = [];
-    spanIdx.forEach((k) => slotW.push(Math.max(1, num(vis[k].c.width, 60))));
+    const slotFixed = [];
+    spanIdx.forEach((k) => { slotW.push(Math.max(1, num(vis[k].c.width, 60))); slotFixed.push(!!vis[k].c.fixedWidth); });
     for (let j = 0; j < flowSlots; j++) {
-      slotW.push(Math.max(...perLine.filter((a) => j < a.length).map((a) => Math.max(1, num(vis[a[j]].c.width, 60)))));
+      // ستونِ کش‌آمدهٔ آخرِ یک سطرِ کوتاه پهنای اسلات را تعیین نمی‌کند (مثل موتور)
+      let inSlot = perLine.filter((a) => j < a.length && !(j === a.length - 1 && a.length < flowSlots)).map((a) => vis[a[j]].c);
+      if (!inSlot.length) inSlot = perLine.filter((a) => j < a.length).map((a) => vis[a[j]].c);
+      slotW.push(Math.max(...inSlot.map((c) => Math.max(1, num(c.width, 60)))));
+      slotFixed.push(inSlot.some((c) => !!c.fixedWidth));
     }
     const sum = Math.max(1, slotW.reduce((a, b) => a + b, 0));
+    const fixedSum = slotW.reduce((a, w, j) => a + (slotFixed[j] ? w : 0), 0);
     const fit = !!tv('fitWidth');
     const tableW = fit ? cw : Math.min(cw, sum);
-    const scale = tableW / sum;
+    // ستون‌های با پهنای ثابت کش نمی‌آیند (مثل موتور)
+    const flexSum = sum - fixedSum;
+    let scale = flexSum > 0 ? Math.max(0.05, (tableW - fixedSum) / flexSum) : 1;
+    let fixedScale = flexSum > 0 || fixedSum <= 0 ? 1 : tableW / fixedSum;
+    if (fixedSum > tableW) { scale = fixedScale = tableW / sum; }
     const tableLeft = rtl ? cw - tableW : 0;
     const slotX = [];
     let cur = rtl ? tableLeft + tableW : tableLeft;
     for (let j = 0; j < slotW.length; j++) {
-      slotW[j] *= scale;
+      slotW[j] *= slotFixed[j] ? fixedScale : scale;
       if (rtl) { cur -= slotW[j]; slotX.push(cur); } else { slotX.push(cur); cur += slotW[j]; }
     }
     const geoOf = new Array(vis.length);
@@ -3008,7 +3018,10 @@
     body.append(sec('el-gen', 'عمومی', [
       ...formRows(get, [{ k: 'name', label: 'نام', t: 'text', ltr: true }], scope),
       row('باند', bandSel),
-      ...formRows(get, [{ k: 'visibleWhen', label: 'نمایش به شرط', t: 'text', ltr: true, ph: '{ShowLogo}' }], scope),
+      ...formRows(get, [
+        { k: 'visibleWhen', label: 'نمایش به شرط', t: 'text', ltr: true, ph: '{ShowLogo}' },
+        { k: 'collapseHeight', label: 'جمع شدن فضا هنگام پنهان بودن', t: 'num', min: 0, step: 0.5, ph: '0' },
+      ], scope),
     ]));
     body.append(sec('el-geo', 'موقعیت و اندازه (pt)', [
       h('div', { class: 'grid2' }, formRows(get, [
@@ -3223,6 +3236,7 @@
       { k: 'visible', label: 'نمایش', t: 'bool', def: true },
       { k: 'line', label: 'سطر (چندسطری)', t: 'num', min: 0, step: 1, int: true, ph: 'خودکار' },
       { k: 'spanLines', label: 'تمام ارتفاع رکورد (چندسطری)', t: 'bool', def: false },
+      { k: 'fixedWidth', label: 'پهنای ثابت (کش نیاید)', t: 'bool', def: false },
     ], 'col')));
     body.append(sec('col-details', 'ستون جزئیات', [detailsEditor(i)]));
     body.append(sec('col-align', 'تراز و تجمیع', formRows(get, [

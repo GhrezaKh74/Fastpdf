@@ -92,25 +92,30 @@ public sealed class ReportEngine
     // ── تولید گزارش ─────────────────────────────────────────────────
 
     /// <summary>شروع تولید جریانی: ردیف‌ها را با AddRow اضافه و در پایان Complete را صدا بزنید.</summary>
+    /// <param name="signature">امضای دیجیتال (اختیاری)؛ خروجی باید قابل Seek و Read باشد.</param>
     public ReportRenderer<T> Begin<T>(ReportTemplate template, Stream output, object? parameters = null,
-        long? expectedRows = null, bool leaveOpen = true, CancellationToken cancellationToken = default) =>
-        new(this, template, output, parameters, expectedRows, cancellationToken, leaveOpen);
+        long? expectedRows = null, bool leaveOpen = true, CancellationToken cancellationToken = default,
+        PdfSignatureOptions? signature = null) =>
+        new(this, template, output, parameters, expectedRows, cancellationToken, leaveOpen, signature);
 
     public RenderResult Render<T>(ReportTemplate template, IEnumerable<T> rows, Stream output, object? parameters = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, PdfSignatureOptions? signature = null)
     {
         template = HideEmptyColumns(template, rows);
-        using var r = Begin<T>(template, output, parameters, CountOf(rows), true, cancellationToken);
+        using var r = Begin<T>(template, output, parameters, CountOf(rows), true, cancellationToken, signature);
         foreach (var row in rows) r.AddRow(row);
         return r.Complete();
     }
 
     public RenderResult Render<T>(ReportTemplate template, IEnumerable<T> rows, string outputPath, object? parameters = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, PdfSignatureOptions? signature = null)
     {
-        using var fs = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None, 1, FileOptions.SequentialScan);
-        return Render(template, rows, fs, parameters, cancellationToken);
+        using var fs = OpenOutput(outputPath, signature);
+        return Render(template, rows, fs, parameters, cancellationToken, signature);
     }
+
+    private static FileStream OpenOutput(string path, PdfSignatureOptions? signature) =>
+        new(path, FileMode.Create, signature != null ? FileAccess.ReadWrite : FileAccess.Write, FileShare.None, 1, FileOptions.SequentialScan);
 
     public byte[] RenderToBytes<T>(ReportTemplate template, IEnumerable<T> rows, object? parameters = null)
     {
@@ -142,10 +147,16 @@ public sealed class ReportEngine
     }
 
     /// <summary>گزارش بدون جدول داده (فرم، نامه، فاکتور تک‌صفحه‌ای).</summary>
-    public RenderResult RenderForm(ReportTemplate template, Stream output, object? parameters = null)
+    public RenderResult RenderForm(ReportTemplate template, Stream output, object? parameters = null, PdfSignatureOptions? signature = null)
     {
-        using var r = Begin<NoRow>(template, output, parameters, 0, true);
+        using var r = Begin<NoRow>(template, output, parameters, 0, true, default, signature);
         return r.Complete();
+    }
+
+    public RenderResult RenderForm(ReportTemplate template, string outputPath, object? parameters = null, PdfSignatureOptions? signature = null)
+    {
+        using var fs = OpenOutput(outputPath, signature);
+        return RenderForm(template, fs, parameters, signature);
     }
 
     /// <summary>
