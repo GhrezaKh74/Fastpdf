@@ -57,7 +57,8 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
     private readonly List<(double Start, double End)> _segments = new();
     private readonly List<double> _hLines = new();
     private readonly List<(double X, double Y1, double Y2)> _extraV = new();
-    private readonly List<double> _extraH = new();
+    private readonly List<(double X1, double X2, double Y)> _extraH = new();
+    private readonly List<(double X1, double X2, double Y)> _subLines = new();
     private char[] _groupKey = new char[64];
     private int _groupKeyLen = -1;
     private char[] _buf = new char[128];
@@ -138,33 +139,58 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
 
                 // تقسیم ستون‌ها به چند سطر (مانند گزارش پویا با بیش از ۱۲ ستون)
                 var lineOf = new int[visible.Count];
+                var spans = visible.Select(c => c.SpanLines).ToArray();
                 if (visible.Any(c => c.Line > 0))
-                    for (int i = 0; i < visible.Count; i++) lineOf[i] = Math.Max(0, visible[i].Line ?? 0);
+                    for (int i = 0; i < visible.Count; i++) lineOf[i] = spans[i] ? 0 : Math.Max(0, visible[i].Line ?? 0);
                 else if (_table.MaxColumnsPerLine > 0 && visible.Count > _table.MaxColumnsPerLine)
                 {
-                    int lines = (int)Math.Ceiling(visible.Count / (double)_table.MaxColumnsPerLine);
-                    int perLine = (int)Math.Ceiling(visible.Count / (double)lines);
-                    for (int i = 0; i < visible.Count; i++) lineOf[i] = i / perLine;
+                    var flow = Enumerable.Range(0, visible.Count).Where(i => !spans[i]).ToList();
+                    int nSpan = visible.Count - flow.Count;
+                    int lines = (int)Math.Ceiling(flow.Count / (double)Math.Max(1, _table.MaxColumnsPerLine - nSpan));
+                    int perLine = (int)Math.Ceiling(flow.Count / (double)Math.Max(1, lines));
+                    for (int k = 0; k < flow.Count; k++) lineOf[flow[k]] = k / perLine;
                 }
                 _lineCount = visible.Count == 0 ? 1 : lineOf.Max() + 1;
+                if (_lineCount == 1) Array.Clear(spans);
                 _lineH = new double[_lineCount];
-                var sums = new double[_lineCount];
-                for (int i = 0; i < visible.Count; i++) sums[lineOf[i]] += Math.Max(1, visible[i].Width);
-                double maxSum = Math.Max(1, sums.Max());
-                double tableW = _table.FitWidth ? _contentW : Math.Min(_contentW, maxSum);
+
+                // شبکهٔ خانه‌ها (slot): در جدول چندسطری، ستون‌های هر سطر دقیقا زیر ستون‌های سطر قبل قرار می‌گیرند
+                var spanIdx = Enumerable.Range(0, visible.Count).Where(i => spans[i]).ToList();
+                var perLineIdx = Enumerable.Range(0, _lineCount)
+                    .Select(l => Enumerable.Range(0, visible.Count).Where(i => !spans[i] && lineOf[i] == l).ToList()).ToList();
+                int flowSlots = perLineIdx.Max(x => x.Count);
+                var slotW = new double[spanIdx.Count + flowSlots];
+                for (int k = 0; k < spanIdx.Count; k++) slotW[k] = Math.Max(1, visible[spanIdx[k]].Width);
+                for (int k = 0; k < flowSlots; k++)
+                    slotW[spanIdx.Count + k] = perLineIdx.Where(x => k < x.Count).Max(x => Math.Max(1, visible[x[k]].Width));
+                double sum = Math.Max(1, slotW.Sum());
+                double tableW = _table.FitWidth ? _contentW : Math.Min(_contentW, sum);
+                double scale = tableW / sum;
                 _tableLeft = template.RightToLeft ? _left + _contentW - tableW : _left;
                 _tableRight = _tableLeft + tableW;
+                var slotX = new double[slotW.Length];
+                double cur = template.RightToLeft ? _tableRight : _tableLeft;
+                for (int k = 0; k < slotW.Length; k++)
+                {
+                    slotW[k] *= scale;
+                    if (template.RightToLeft) { cur -= slotW[k]; slotX[k] = cur; }
+                    else { slotX[k] = cur; cur += slotW[k]; }
+                }
+                // (شروع اسلات, تعداد اسلات) برای هر ستون — آخرین ستون یک سطر کوتاه تا انتها کش می‌آید
+                var geo = new (int Slot, int Count)[visible.Count];
+                for (int k = 0; k < spanIdx.Count; k++) geo[spanIdx[k]] = (k, 1);
+                foreach (var idx in perLineIdx)
+                    for (int k = 0; k < idx.Count; k++)
+                        geo[idx[k]] = (spanIdx.Count + k, k == idx.Count - 1 ? flowSlots - k : 1);
 
                 _cols = new Col[visible.Count];
-                var cursors = Enumerable.Repeat(template.RightToLeft ? _tableRight : _tableLeft, _lineCount).ToArray();
                 for (int i = 0; i < visible.Count; i++)
                 {
                     var cd = visible[i];
-                    int line = lineOf[i];
-                    double scale = _table.FitWidth ? tableW / Math.Max(1, sums[line]) : tableW / maxSum;
-                    var col = new Col { Def = cd, Line = line, W = Math.Max(1, cd.Width) * scale };
-                    if (template.RightToLeft) { cursors[line] -= col.W; col.X = cursors[line]; }
-                    else { col.X = cursors[line]; cursors[line] += col.W; }
+                    var (slot, count) = geo[i];
+                    double x1 = double.MaxValue, x2 = double.MinValue;
+                    for (int k = slot; k < slot + count; k++) { x1 = Math.Min(x1, slotX[k]); x2 = Math.Max(x2, slotX[k] + slotW[k]); }
+                    var col = new Col { Def = cd, Line = lineOf[i], Span = spans[i], X = x1, W = x2 - x1 };
 
                     col.Binding = TextTemplate<T>.Parse(cd.Field, this, bareField: true, defaultFormat: cd.Format);
                     if (col.Binding.Segments.Length == 1)
@@ -174,6 +200,14 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
                         else if (s.Kind == SegmentKind.RowNumber) { col.IsRowNumber = true; col.Spec = s.Spec; }
                     }
                     col.Header = TextTemplate<T>.Parse(cd.Header, this);
+                    if (cd.Details is { Count: > 0 })
+                    {
+                        col.Details = cd.Details.Where(d => !string.IsNullOrWhiteSpace(d.Field))
+                            .Select(d => (d.Label, FieldAccess.Create<T>(d.Field), FormatSpec.Get(d.Format))).ToArray();
+                        col.Getter = null;
+                        col.IsRowNumber = false;
+                        cd.Overflow ??= "Wrap";
+                    }
 
                     var acc = _styles.Start(_table.RowStyle);
                     _styles.ApplyNamed(acc, cd.Style);
@@ -326,9 +360,17 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         {
             double maxLine = (TableBottom - _top - _table.HeaderHeight * _lineCount - 1) / _lineCount;
             foreach (var c in cols)
-                if (c.Wrap && c.Len > 0)
+                if (c.Wrap && c.Len > 0 && !c.Span)
                     _lineH[c.Line] = Math.Min(maxLine, Math.Max(_lineH[c.Line],
                         PdfPage.MeasureTextHeight(_pdf, c.Buf.AsSpan(0, c.Len), c.W, c.Style.Text)));
+        }
+        // سطرهای اضافهٔ کاملا خالی (مثلا سطر جزئیات بدون مقدار) جمع می‌شوند
+        for (int l = 1; l < _lineCount; l++)
+        {
+            bool empty = true;
+            foreach (var c in cols)
+                if (c.Line == l && !c.Span && c.Len > 0) { empty = false; break; }
+            if (empty) _lineH[l] = 0;
         }
         double h = 0;
         for (int l = 0; l < _lineCount; l++) h += _lineH[l];
@@ -341,12 +383,12 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         {
             var c = cols[i];
             if (c.Len == 0) continue;
-            double cy = _y, ch = _lineH[c.Line];
-            for (int l = 0; l < c.Line; l++) cy += _lineH[l];
+            double cy = _y, ch = c.Span ? h : _lineH[c.Line];
+            if (!c.Span) for (int l = 0; l < c.Line; l++) cy += _lineH[l];
             var style = c.NegativeStyle != null && (c.Buf[0] == '-' || c.Buf[0] == '(') ? c.NegativeStyle : c.Style.Text;
             page.DrawText(c.Buf.AsSpan(0, c.Len), c.X, cy, c.W, ch, style);
         }
-        if (_lineCount > 1) AddLineVerticals(_y, _lineH);
+        if (_lineCount > 1) AddLineVerticals(_y, _lineH, separators: true);
         _y += h;
         if (_table.HorizontalLines) _hLines.Add(_y);
         Accumulate(row);
@@ -354,10 +396,29 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
 
     private void FormatCell(Col c, T row)
     {
+        if (c.Details != null) { FormatDetails(c, row); return; }
         if (c.Getter != null) c.Len = c.Getter.Write(row, c.Spec, ref c.Buf);
         else if (c.IsRowNumber) c.Len = ValueFormatter.WriteDecimal(_rowNumber, c.Spec, ref c.Buf);
         else if (c.Binding.IsConstant) { c.Len = 0; CopyTo(c, c.Binding.ConstantText); }
         else CopyTo(c, c.Binding.Evaluate(this, row, true, ref _buf));
+    }
+
+    private readonly System.Text.StringBuilder _sb = new();
+
+    private void FormatDetails(Col c, T row)
+    {
+        _sb.Clear();
+        string sep = c.Def.DetailSeparator ?? "  •  ";
+        foreach (var (label, getter, spec) in c.Details!)
+        {
+            if (getter == null) continue;
+            int n = getter.Write(row, spec, ref _buf);
+            if (n == 0 || _buf.AsSpan(0, n).IsWhiteSpace()) continue;
+            if (_sb.Length > 0) _sb.Append(sep);
+            if (label.Length > 0) _sb.Append(label).Append(": ");
+            _sb.Append(_buf, 0, n);
+        }
+        CopyTo(c, _sb.ToString());
     }
 
     private static void CopyTo(Col c, string? s)
@@ -436,6 +497,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         _hLines.Clear();
         _extraV.Clear();
         _extraH.Clear();
+        _subLines.Clear();
         bool firstTablePage = _rowNumber == 0;
         if (firstTablePage || t.RepeatHeader)
         {
@@ -445,13 +507,15 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
             foreach (var c in _cols)
             {
                 var text = c.Header.Evaluate(this, default, false, ref _buf);
-                page.DrawText(text, c.X, _y + c.Line * t.HeaderHeight, c.W, t.HeaderHeight, c.HeaderStyle);
+                if (c.Span) page.DrawText(text, c.X, _y, c.W, hh, c.HeaderStyle);
+                else page.DrawText(text, c.X, _y + c.Line * t.HeaderHeight, c.W, t.HeaderHeight, c.HeaderStyle);
             }
             if (_lineCount > 1)
             {
                 for (int l = 0; l < _lineCount; l++) _lineH[l] = t.HeaderHeight;
-                AddLineVerticals(_y, _lineH);
-                for (int l = 1; l < _lineCount; l++) _extraH.Add(_y + l * t.HeaderHeight);
+                AddLineVerticals(_y, _lineH, separators: false);
+                var (fx1, fx2) = FlowRange();
+                for (int l = 1; l < _lineCount; l++) _extraH.Add((fx1, fx2, _y + l * t.HeaderHeight));
             }
             _y += hh;
             _hLines.Add(_y);
@@ -477,7 +541,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         page.PathLine(_tableLeft, _y, _tableRight, _y);
         page.PathLine(_tableLeft, _tableTop, _tableLeft, _y);
         page.PathLine(_tableRight, _tableTop, _tableRight, _y);
-        foreach (var hy in _extraH) page.PathLine(_tableLeft, hy, _tableRight, hy);
+        foreach (var (hx1, hx2, hy) in _extraH) page.PathLine(hx1, hy, hx2, hy);
         if (t.VerticalLines && _lineCount == 1)
         {
             foreach (var (s, e) in _segments)
@@ -493,6 +557,15 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         }
         foreach (var (x, y1, y2) in _extraV) page.PathLine(x, y1, x, y2);
         page.StrokePath();
+        if (_subLines.Count > 0)
+        {
+            // جداکنندهٔ کم‌رنگ بین سطرهای یک رکورد
+            var light = new PdfColor((byte)((_borderColor.R + 2 * 255) / 3), (byte)((_borderColor.G + 2 * 255) / 3), (byte)((_borderColor.B + 2 * 255) / 3));
+            page.BeginPath(light, Math.Max(0.25, t.BorderWidth * 0.6), dashed: true);
+            foreach (var (sx1, sx2, sy) in _subLines) page.PathLine(sx1, sy, sx2, sy);
+            page.StrokePath();
+            page.BeginPath(_borderColor, t.BorderWidth); // بازگرداندن خط ممتد برای ادامه
+        }
         _tableOpen = false;
     }
 
@@ -559,22 +632,49 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         _segStart = _y;
     }
 
-    /// <summary>خطوط عمودی هر سطر از یک رکورد چندسطری.</summary>
-    private void AddLineVerticals(double top, double[] lineHeights)
+    /// <summary>خطوط عمودی هر سطر از یک رکورد چندسطری (+ جداکنندهٔ کم‌رنگ بین سطرها).</summary>
+    private void AddLineVerticals(double top, double[] lineHeights, bool separators)
     {
-        if (!_table!.VerticalLines) return;
-        double y = top;
-        for (int l = 0; l < _lineCount; l++)
+        double total = 0;
+        for (int l = 0; l < _lineCount; l++) total += lineHeights[l];
+        if (_table!.VerticalLines)
         {
-            foreach (var c in _cols)
+            double y = top;
+            for (int l = 0; l < _lineCount; l++)
             {
-                if (c.Line != l) continue;
-                double x = _t.RightToLeft ? c.X : c.X + c.W;
-                if (Math.Abs(x - _tableLeft) < 0.01 || Math.Abs(x - _tableRight) < 0.01) continue;
-                _extraV.Add((x, y, y + lineHeights[l]));
+                foreach (var c in _cols)
+                {
+                    if (c.Span ? l > 0 : c.Line != l) continue;
+                    if (!c.Span && lineHeights[l] <= 0) continue;
+                    double x = _t.RightToLeft ? c.X : c.X + c.W;
+                    if (Math.Abs(x - _tableLeft) < 0.01 || Math.Abs(x - _tableRight) < 0.01) continue;
+                    _extraV.Add((x, y, y + (c.Span ? total : lineHeights[l])));
+                }
+                y += lineHeights[l];
             }
-            y += lineHeights[l];
         }
+        if (separators)
+        {
+            var (x1, x2) = FlowRange();
+            double y = top;
+            for (int l = 0; l < _lineCount - 1; l++)
+            {
+                y += lineHeights[l];
+                if (lineHeights[l + 1] > 0) _subLines.Add((x1, x2, y));
+            }
+        }
+    }
+
+    /// <summary>بازهٔ افقی ستون‌های غیر Span (برای خطوط بین سطرها).</summary>
+    private (double X1, double X2) FlowRange()
+    {
+        double x1 = _tableLeft, x2 = _tableRight;
+        foreach (var c in _cols)
+        {
+            if (!c.Span) continue;
+            if (_t.RightToLeft) x2 = Math.Min(x2, c.X); else x1 = Math.Max(x1, c.X + c.W);
+        }
+        return (x1, x2);
     }
 
     /// <summary>پایان گزارش: ردیف‌های جمع، باند پایانی، پاورقی و بستن فایل.</summary>
@@ -764,6 +864,8 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         public ColumnDefinition Def = null!;
         public double X, W;
         public int Line;
+        public bool Span;
+        public (string Label, FieldGetter<T>? Getter, FormatSpec Spec)[]? Details;
         public TextTemplate<T> Binding = null!;
         public TextTemplate<T> Header = null!;
         public FieldGetter<T>? Getter;

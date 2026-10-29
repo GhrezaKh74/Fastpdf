@@ -150,6 +150,41 @@ public class TemplateTests
     }
 
     [Fact]
+    public void Render_DetailsLine_PrintsOnlyFilledFields_AndCollapsesEmptyLine()
+    {
+        var t = SimpleTemplate(t =>
+        {
+            t.Table!.Columns[0].SpanLines = true;
+            t.Table.Columns.Add(new ColumnDefinition
+            {
+                Header = "جزئیات", Line = 1,
+                Details = new() { new DetailField { Label = "B", Field = "Branch" }, new DetailField { Label = "N", Field = "Customer.Name" } }
+            });
+        });
+        var rows = Rows(40).ToList();
+        foreach (var r in rows.Where((_, i) => i % 2 == 0)) { r.Branch = ""; r.Customer = null; }
+        var text = Render(t, rows).AllText();
+        Assert.Contains("C2", text);              // پرشده چاپ می‌شود
+        Assert.DoesNotContain("N: C5", text);     // ردیف ۵ (بدون جزئیات) چیزی ندارد
+        // سطر خالی جمع می‌شود: نسبت به جدول بدون جزئیات صفحهٔ بسیار بیشتری لازم نیست
+        Assert.True(Render(t, rows).PageCount <= Render(SimpleTemplate(), Rows(40)).PageCount * 2);
+    }
+
+    [Fact]
+    public void BankStatementWideTemplate_Renders()
+    {
+        var engine = Engine();
+        var t = engine.LoadTemplate("bank-statement-wide");
+        var rows = Enumerable.Range(0, 100).Select(i => new Dictionary<string, object?>
+        {
+            ["TR0108"] = "14030512", ["desc_desc"] = "انتقال وجه", ["TR0105"] = 1000m * i,
+            ["Sheba"] = i % 3 == 0 ? "IR120170000000123456789012" : "", ["SourceCardNo"] = i % 2 == 0 ? "6037991234567890" : null
+        });
+        var r = new PdfTestReader(engine.RenderToBytes(t, rows, new { BankName = "بانک" }));
+        Assert.Contains("IR120170000000123456789012", r.AllText());
+    }
+
+    [Fact]
     public void Render_FromDictionaryRows_AndNestedFields()
     {
         var t = SimpleTemplate(t => t.Table!.Columns.Add(new ColumnDefinition { Header = "مشتری", Field = "Customer.Name" }));

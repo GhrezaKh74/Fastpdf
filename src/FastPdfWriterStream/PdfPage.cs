@@ -424,11 +424,18 @@ public sealed class PdfPage
 
         if (style.Overflow == TextOverflow.Wrap)
         {
-            int maxUnits = (int)Math.Max(1, aw / (font.Scale * size));
             var lines = _writer.LineScratch;
-            shaper.ShapeWrapped(font, text, style.Direction, digits, docRtl, maxUnits, lines);
-            double lineH = font.LineHeight(size) * style.LineSpacing;
-            double total = lines.Count * lineH;
+            double lineH, total;
+            while (true)
+            {
+                int maxUnits = (int)Math.Max(1, aw / (font.Scale * size));
+                shaper.ShapeWrapped(font, text, style.Direction, digits, docRtl, maxUnits, lines);
+                lineH = font.LineHeight(size) * style.LineSpacing;
+                total = lines.Count * lineH;
+                // اگر چند خط هم در ارتفاع کادر جا نشود، فونت کوچک می‌شود (مثلا سرستون‌های بلند)
+                if (total <= ah + 0.5 || size <= style.MinSize) break;
+                size = Math.Max(style.MinSize, size - 0.5);
+            }
             double top = style.VAlign switch
             {
                 VAlign.Middle => ay + (ah - total) / 2,

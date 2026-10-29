@@ -290,6 +290,23 @@ public sealed class ColumnDefinition
     public bool Visible { get; set; } = true;
     /// <summary>شمارهٔ سطر (۰، ۱، ...) در جدول‌های چندسطری؛ null یعنی خودکار.</summary>
     public int? Line { get; set; }
+    /// <summary>در جدول چندسطری، این ستون تمام ارتفاع رکورد را می‌گیرد (مثلا «ردیف» یا «تاریخ»).</summary>
+    public bool SpanLines { get; set; }
+    /// <summary>
+    /// ستون «جزئیات»: فقط فیلدهای غیرخالی به صورت «عنوان: مقدار» کنار هم نوشته و در صورت نیاز شکسته می‌شوند.
+    /// برای فیلدهای کم‌مقدار (شبا، کارت، پیگیری، ...) به جای ده‌ها ستون خالی.
+    /// </summary>
+    public List<DetailField>? Details { get; set; }
+    /// <summary>جداکنندهٔ آیتم‌های ستون جزئیات.</summary>
+    public string? DetailSeparator { get; set; }
+}
+
+/// <summary>یک آیتم ستون جزئیات.</summary>
+public sealed class DetailField
+{
+    public string Label { get; set; } = "";
+    public string Field { get; set; } = "";
+    public string? Format { get; set; }
 }
 
 public sealed class WatermarkDefinition

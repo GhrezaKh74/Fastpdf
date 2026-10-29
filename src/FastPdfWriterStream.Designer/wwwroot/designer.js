@@ -124,7 +124,7 @@
     'showGrandTotals', 'grandTotalsLabel', 'showCarryForward', 'carryForwardLabel', 'emptyText', 'groupBy',
     'groupHeaderText', 'groupHeaderBackground', 'showGroupTotals', 'groupTotalsLabel', 'header', 'field', 'format',
     'headerAlign', 'aggregate', 'negativeColor', 'visible', 'watermark', 'opacity', 'angle', 'parameters', 'fields',
-    'title', 'sample', 'maxColumnsPerLine', 'line'];
+    'title', 'sample', 'maxColumnsPerLine', 'line', 'spanLines', 'details', 'detailSeparator', 'label'];
   const KEY_MAP = new Map(KNOWN_KEYS.map((k) => [k.toLowerCase(), k]));
   const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -669,6 +669,13 @@
 
   /** Sample text for a data cell: bare field name or an expression with {..} tokens. */
   function cellSample(col, rowIdx) {
+    if (Array.isArray(col.details) && col.details.length) {
+      const sep = col.detailSeparator != null ? col.detailSeparator : '  •  ';
+      return col.details.filter((d) => d && d.field).map((d) => {
+        const v = sampleOf(d.field, rowIdx);
+        return (d.label ? d.label + ': ' : '') + (v == null ? `{${d.field}}` : formatSample(v, d.format));
+      }).join(sep);
+    }
     const f = String(col.field || '').trim();
     if (!f) return '';
     if (!f.includes('{')) {
@@ -1042,39 +1049,58 @@
     const rtl = tplRtl();
     const vis = t.columns.map((c, i) => ({ c, i })).filter((x) => x.c.visible !== false);
     const lineOf = vis.map(() => 0);
+    let span = vis.map((x) => !!x.c.spanLines);
     if (vis.some((x) => num(x.c.line, 0) > 0)) {
-      vis.forEach((x, k) => { lineOf[k] = Math.max(0, Math.floor(num(x.c.line, 0))); });
+      vis.forEach((x, k) => { lineOf[k] = span[k] ? 0 : Math.max(0, Math.floor(num(x.c.line, 0))); });
     } else {
       const mx = Math.floor(num(tv('maxColumnsPerLine'), 0));
       if (mx > 0 && vis.length > mx) {
-        const lines = Math.ceil(vis.length / mx);
-        const per = Math.ceil(vis.length / lines);
-        vis.forEach((x, k) => { lineOf[k] = Math.floor(k / per); });
+        const flow = vis.map((x, k) => k).filter((k) => !span[k]);
+        const nSpan = vis.length - flow.length;
+        const lines = Math.ceil(flow.length / Math.max(1, mx - nSpan));
+        const per = Math.ceil(flow.length / Math.max(1, lines));
+        flow.forEach((k, j) => { lineOf[k] = Math.floor(j / per); });
       }
     }
     const lineCount = vis.length ? Math.max(...lineOf) + 1 : 1;
-    const sums = new Array(lineCount).fill(0);
-    vis.forEach((x, k) => { sums[lineOf[k]] += Math.max(1, num(x.c.width, 60)); });
-    const maxSum = Math.max(1, ...sums);
+    if (lineCount === 1) span = span.map(() => false);
+    // Shared slot grid (as in the engine): every line's columns sit under the same slots;
+    // spanLines columns take a slot for the full record height; a short line's last column stretches.
+    const spanIdx = vis.map((x, k) => k).filter((k) => span[k]);
+    const perLine = [];
+    for (let l = 0; l < lineCount; l++) perLine.push(vis.map((x, k) => k).filter((k) => !span[k] && lineOf[k] === l));
+    const flowSlots = Math.max(0, ...perLine.map((a) => a.length));
+    const slotW = [];
+    spanIdx.forEach((k) => slotW.push(Math.max(1, num(vis[k].c.width, 60))));
+    for (let j = 0; j < flowSlots; j++) {
+      slotW.push(Math.max(...perLine.filter((a) => j < a.length).map((a) => Math.max(1, num(vis[a[j]].c.width, 60)))));
+    }
+    const sum = Math.max(1, slotW.reduce((a, b) => a + b, 0));
     const fit = !!tv('fitWidth');
-    const tableW = fit ? cw : Math.min(cw, maxSum);
+    const tableW = fit ? cw : Math.min(cw, sum);
+    const scale = tableW / sum;
     const tableLeft = rtl ? cw - tableW : 0;
-    const cursors = new Array(lineCount).fill(rtl ? tableLeft + tableW : tableLeft);
+    const slotX = [];
+    let cur = rtl ? tableLeft + tableW : tableLeft;
+    for (let j = 0; j < slotW.length; j++) {
+      slotW[j] *= scale;
+      if (rtl) { cur -= slotW[j]; slotX.push(cur); } else { slotX.push(cur); cur += slotW[j]; }
+    }
+    const geoOf = new Array(vis.length);
+    spanIdx.forEach((k, j) => { geoOf[k] = [j, 1]; });
+    perLine.forEach((a) => a.forEach((k, j) => { geoOf[k] = [spanIdx.length + j, j === a.length - 1 ? flowSlots - j : 1]; }));
     const cols = vis.map((x, k) => {
-      const line = lineOf[k];
-      const scale = fit ? tableW / Math.max(1, sums[line]) : tableW / maxSum;
-      const w = Math.max(1, num(x.c.width, 60)) * scale;
-      let left;
-      if (rtl) {
-        cursors[line] -= w;
-        left = cursors[line];
-      } else {
-        left = cursors[line];
-        cursors[line] += w;
-      }
-      return { c: x.c, i: x.i, line, width: w, left, scale };
+      const [slot, count] = geoOf[k];
+      let x1 = Infinity;
+      let x2 = -Infinity;
+      for (let j = slot; j < slot + count; j++) { x1 = Math.min(x1, slotX[j]); x2 = Math.max(x2, slotX[j] + slotW[j]); }
+      return { c: x.c, i: x.i, line: lineOf[k], span: span[k], width: x2 - x1, left: x1, scale };
     });
-    return { cols, lineCount, tableLeft, tableW };
+    // Horizontal range of non-spanning columns (for the separators between sub-lines).
+    let fx1 = tableLeft;
+    let fx2 = tableLeft + tableW;
+    cols.forEach((c) => { if (c.span) { if (rtl) fx2 = Math.min(fx2, c.left); else fx1 = Math.max(fx1, c.left + c.width); } });
+    return { cols, lineCount, tableLeft, tableW, flowX1: fx1, flowX2: fx2 };
   }
 
   /** Preview rows: header + optional carry/group rows + 4 sample records + enabled totals rows. */
@@ -1558,7 +1584,8 @@
             st = resolveStyle([t.totalsStyle], null, [], { bold: true, align: c.c.align });
             bg = normHex(tv('totalsBackground'));
           }
-          const d = cell(c.left, top, c.width, r.sub, text, st, bg,
+          const full = c.span && !isTotals;
+          const d = cell(c.left, full ? y : top, c.width, full ? r.h : r.sub, text, st, bg,
             (r.kind === 'header' ? 'header' : '') + (c.i === selCol ? ' col-sel' : ''),
             r.kind === 'header' ? 'ستون: ' + (c.c.header || c.c.field || '') : String(c.c.field || ''));
           d.addEventListener('pointerdown', (e) => {
@@ -1618,7 +1645,15 @@
         const isTotals = r.kind !== 'header' && r.kind !== 'data';
         for (let l = 0; l < geo.lineCount; l++) {
           const top = y0 + l * r.sub;
-          if (l > 0 && (hLines || r.kind === 'header')) line(L0, top, R0, top);
+          if (l > 0) {
+            if (r.kind === 'data') {
+              svg.append(svgEl('line', {
+                x1: geo.flowX1 * s, y1: top * s, x2: geo.flowX2 * s, y2: top * s, stroke: color,
+                'stroke-width': sw * 0.6, 'stroke-dasharray': '3 2', opacity: 0.45,
+              }));
+            } else if (r.kind === 'header') line(geo.flowX1, top, geo.flowX2, top);
+            else if (hLines) line(L0, top, R0, top);
+          }
           const lineCols = byLine[l];
           let span = 0;
           if (isTotals) while (span < lineCols.length && !isAgg(lineCols[span])) span++;
@@ -1627,6 +1662,7 @@
             if (!vLines && !(isTotals && k === span - 1)) return;
             const x = rtl ? c.left : c.left + c.width;
             if (Math.abs(x - L0) < 0.01 || Math.abs(x - R0) < 0.01) return;
+            if (c.span && !isTotals) { if (l === 0) line(x, y0, x, y0 + r.h); return; }
             line(x, top, x, top + r.sub);
           });
         }
@@ -3173,7 +3209,9 @@
       { k: 'format', label: 'قالب', t: 'text', list: 'dl-formats', ltr: true, ph: 'N0' },
       { k: 'visible', label: 'نمایش', t: 'bool', def: true },
       { k: 'line', label: 'سطر (چندسطری)', t: 'num', min: 0, step: 1, int: true, ph: 'خودکار' },
+      { k: 'spanLines', label: 'تمام ارتفاع رکورد (چندسطری)', t: 'bool', def: false },
     ], 'col')));
+    body.append(sec('col-details', 'ستون جزئیات', [detailsEditor(i)]));
     body.append(sec('col-align', 'تراز و تجمیع', formRows(get, [
       { k: 'align', label: 'تراز داده', t: 'select', opts: ALIGN_OPTS },
       { k: 'headerAlign', label: 'تراز سرستون', t: 'select', opts: ALIGN_OPTS },
@@ -3189,6 +3227,44 @@
       { k: 'overflow', label: 'سرریز متن', t: 'select', opts: OVERFLOW_OPTS },
       { k: 'direction', label: 'جهت متن', t: 'select', opts: DIRECTION_OPTS },
     ], 'col')));
+  }
+
+  /**
+   * Editor for column.details: one item per line as «عنوان=فیلد» or «عنوان=فیلد|قالب».
+   * Only non-empty fields are printed (label: value), which keeps sparse fields compact.
+   */
+  function detailsEditor(i) {
+    const col = state.tpl.table.columns[i];
+    const toText = (arr) => (arr || []).map((d) => (d.label || '') + '=' + (d.field || '') + (d.format ? '|' + d.format : '')).join('\n');
+    const ta = h('textarea', { rows: 5, dir: 'auto', spellcheck: 'false', placeholder: 'شماره شبا=Sheba\nکارت مبدا=SourceCardNo\nمبلغ=Amount|N0', dataset: { fkey: 'col.details' } });
+    ta.value = toText(col.details);
+    ta.addEventListener('input', () => {
+      const items = ta.value.split('\n').map((ln) => ln.trim()).filter(Boolean).map((ln) => {
+        const eq = ln.indexOf('=');
+        const label = eq >= 0 ? ln.slice(0, eq).trim() : '';
+        let rest = eq >= 0 ? ln.slice(eq + 1).trim() : ln;
+        let format;
+        const bar = rest.indexOf('|');
+        if (bar >= 0) { format = rest.slice(bar + 1).trim() || undefined; rest = rest.slice(0, bar).trim(); }
+        const o = { label, field: rest };
+        if (format) o.format = format;
+        return o;
+      }).filter((d) => d.field);
+      mutate((tpl) => {
+        const c = tpl.table && tpl.table.columns[i];
+        if (!c) return;
+        if (items.length) c.details = items; else delete c.details;
+      }, { coalesce: 'col.details.' + i });
+    });
+    const sepInp = h('input', { type: 'text', value: col.detailSeparator == null ? '' : col.detailSeparator, placeholder: '  •  ', dataset: { fkey: 'col.detailSeparator' } });
+    sepInp.addEventListener('input', () => mutate((tpl) => {
+      const c = tpl.table && tpl.table.columns[i];
+      if (!c) return;
+      if (sepInp.value === '') delete c.detailSeparator; else c.detailSeparator = sepInp.value;
+    }, { coalesce: 'col.sep.' + i }));
+    return h('div', { class: 'sec-body' },
+      h('div', { class: 'hint' }, 'هر خط: عنوان=فیلد (اختیاری: |قالب). فقط مقادیر پر چاپ می‌شوند؛ مناسب شبا، کارت، پیگیری و ... به‌جای ستون‌های خالی. معمولا همراه با «سطر» = ۱ برای یک سطر تمام‌عرض زیر هر تراکنش.'),
+      row('آیتم‌ها', ta, 'stack'), row('جداکننده', sepInp));
   }
 
   // ════════════════════════════════════════════════════════════════════
