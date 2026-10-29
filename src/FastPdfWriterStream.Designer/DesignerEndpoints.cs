@@ -38,13 +38,16 @@ public static class FastPdfDesignerExtensions
     /// </summary>
     public static RouteGroupBuilder MapFastPdfDesigner(this IEndpointRouteBuilder endpoints, string pattern = "/pdf-designer")
     {
-        var prefix = "/" + pattern.Trim('/');
-        var group = endpoints.MapGroup(prefix);
+        // پیشوند خالی: وقتی Designer در شاخهٔ app.Map("/pdf-designer", ...) نصب می‌شود
+        var trimmed = (pattern ?? "").Trim('/');
+        var prefix = trimmed.Length == 0 ? "" : "/" + trimmed;
+        var group = endpoints.MapGroup(prefix.Length == 0 ? "/" : prefix);
 
         // صفحه (با / انتهایی تا مسیرهای نسبی api/... درست کار کنند)
         group.MapGet("", (HttpContext ctx) =>
         {
-            if (!ctx.Request.Path.Value!.EndsWith('/'))
+            var path = ctx.Request.Path.Value;
+            if (string.IsNullOrEmpty(path) || !path.EndsWith('/'))
                 return Results.Redirect(ctx.Request.PathBase + prefix + "/" + ctx.Request.QueryString);
             return Asset("index.html", "text/html; charset=utf-8");
         });
