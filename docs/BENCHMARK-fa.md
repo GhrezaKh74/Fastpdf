@@ -1,0 +1,31 @@
+# مقایسهٔ سرعت با گزارش فعلی سامانهٔ صورتحساب (Stimulsoft)
+
+داده: **۱۰٬۲۰۸ تراکنش یکسان** برای هر دو موتور (مدل `TrnResultForExport` سامانه؛ نیمی از تراکنش‌ها اطلاعات
+تکمیلی مثل شبا/کارت/پیگیری دارند). هر دو A4 عمودی.
+
+| | Stimulsoft (فعلی) | FastPdfWriterStream | نسبت |
+|---|---:|---:|---:|
+| قالب | `Reports/Bill/Report-pdf.mrt` | `templates/bank-statement-portrait-full.json` | |
+| تعداد صفحه | ۶۰۱ | ۴۲۸ | ۲۹٪ کمتر |
+| زمان ساخت (پروسس گرم) | **۸۷٫۶ ثانیه** (رندر ۷۱٫۵ + خروجی PDF ۱۶٫۰) | **۰٫۳۷ ثانیه** | ~۲۳۵ برابر سریع‌تر |
+| زمان اولین گزارش بعد از اجرای برنامه | — | ۱٫۲۹ ثانیه | |
+| حجم فایل | ۷٫۱ MB | ۳٫۲ MB | ۵۵٪ کمتر |
+| بیشینهٔ حافظه (Working Set) | ~۴۹۵ MB | ~۸۱ MB | ۶ برابر کمتر |
+| حافظهٔ تخصیص‌یافته در کل | ~۲۷٬۳۰۰ MB | ~۸ MB | |
+
+## روش اجرا
+- Stimulsoft نسخهٔ 2023.1.1 (همان پکیج `Stimulsoft.Reports.Web.NetCore` در `Billing.Common.csproj`)، همان مسیر کد
+  `RenderPartCommonReport` + `PdfStimulSoftReporter` با `EmbeddedFonts = true`.
+- اسکریپت `Report-pdf.mrt` روی .NET 8 در حالت کامپایل خطا می‌دهد (`member names cannot be the same as their enclosing type`)؛
+  بنابراین مانند `DynamicPdfStimulSoftReporter` با `StiOptions.Engine.FullTrust = false` (حالت تفسیری) اجرا شد.
+- Stimulsoft بدون کلید لایسنس (حالت Trial با واترمارک) اجرا شد؛ واترمارک روی سرعت اثری ندارد.
+- فونت Arial از `wwwroot/Fonts/arial.ttf` به Stimulsoft داده شد (روی سرور ویندوز نصب است).
+- هر دو در یک پروسس «گرم» اندازه‌گیری شدند (یک گزارش کوچک قبل از اندازه‌گیری ساخته شد).
+- محیط: کانتینر لینوکس ۴ هسته‌ای، .NET 8. اعداد مطلق روی سرور شما فرق می‌کند ولی نسبت‌ها باید نزدیک باشند.
+
+## چرا تعداد صفحه کمتر است
+- در `Report-pdf.mrt` هر تراکنش **همیشه** دو سطر دارد، حتی وقتی سطر دوم خالی است؛ در قالب جدید سطر دوم فقط وقتی
+  اطلاعاتی دارد چاپ می‌شود.
+- اندازهٔ قلم: Stimulsoft با Arial 7pt، قالب جدید با Vazirmatn 8pt (کمی درشت‌تر).
+
+کد هر دو بنچمارک در `docs/benchmark/` است (پروژهٔ Stimulsoft عمدا جزو Solution نیست چون پکیج تجاری است).
