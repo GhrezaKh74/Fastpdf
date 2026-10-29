@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- ═══ NuGet Package Metadata ═══ -->
+    <PackageId>FastPdfWriterStream</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>GholamReza Khalaji</Authors>
+    <Company>Bsi</Company>
+    <Copyright>Copyright © 2026 GholamReza Khalaji</Copyright>
+
+    <Title>FastPdfWriterStream — Fast Streaming PDF Report Writer for .NET</Title>
+    <Description>
+      Extremely fast, memory efficient, streaming PDF writer and report engine for .NET 8+.
+      Writes pages directly to the output stream (constant memory for millions of rows),
+      full Persian / Arabic support (OpenType shaping + bidi), TrueType font subsetting,
+      JSON report templates (bands, tables, totals, page numbers) and a visual template designer.
+    </Description>
+
+    <PackageTags>pdf;report;fast;streaming;persian;farsi;rtl;arabic;invoice;template;dotnet;csharp;export</PackageTags>
+    <PackageProjectUrl>https://github.com/GhrezaKh74/Fastpdf</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/GhrezaKh74/Fastpdf</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- ═══ Build Settings ═══ -->
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Optimize>true</Optimize>
+    <IsTrimmable>false</IsTrimmable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FastPdfWriterStream.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "FastPdf.DesignerHost": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "pdf-designer/",
+      "applicationUrl": "http://localhost:5080",
+      "environmentVariables": { "ASPNETCORE_ENVIRONMENT": "Development" }
+    }
+  }
+}
