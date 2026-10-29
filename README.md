@@ -28,6 +28,7 @@ is written to the output stream as soon as it's full, so memory stays flat wheth
 - 🧮 **Formats**: `N0`, `#,0;(#,0);-`, `persian` (Shamsi date), `mask:####/##/##`, `div:100:#,0.00`, `abs:`, `bool:بله|خیر`
 - 🎨 **Visual designer**: WYSIWYG, RTL, works offline, one line to host: `app.MapFastPdfDesigner("/pdf-designer")`
 - 🔌 **Data sources**: `IEnumerable<T>` (compiled getters, no reflection per row), `IAsyncEnumerable<T>` (EF Core streaming), `DataTable`, `IDataReader`, dictionaries
+- ✒️ **Vector SVG** (logos): written once and reused on every page; single-color logos can be recolored (white on blue)
 - 🔏 **Digital signature**: PKCS#7 detached (SHA-256), invisible signature field
 - 🧱 **Drawing API**: text boxes (shrink / wrap / clip / ellipsis), lines, rectangles, rounded rectangles, JPEG/PNG (with alpha), opacity, rotated text
 
@@ -233,6 +234,7 @@ page.DrawText("صورتحساب شماره 12345", 20, 20, 300, 18, style);     
 page.DrawLine(20, 40, 575, 40, PdfColor.Gray, 0.5);
 page.DrawRoundedRect(20, 50, 200, 60, 6, PdfColor.Blue, PdfColor.FromHex("#EEF3FB"));
 page.DrawImage(pdf.AddImage("logo.png"), 480, 50, 90, 60);
+page.DrawSvg(pdf.AddSvg("logo.svg"), 20, 120, 120, 24);          // vector, crisp at any zoom
 page.DrawText("صفحه ", 20, 800, 555, 16, style);             //  = total page count placeholder
 ```
 

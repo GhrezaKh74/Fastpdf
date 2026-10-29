@@ -255,6 +255,33 @@ public sealed class PdfPage
         s.Ascii(" Do Q\n");
     }
 
+    /// <summary>
+    /// رسم تصویر برداری SVG در کادر. برای SVG تک‌رنگ (مثل لوگو) می‌توان رنگ را جایگزین کرد
+    /// (مثلا لوگوی سفید روی زمینهٔ آبی).
+    /// </summary>
+    public void DrawSvg(PdfSvg svg, double x, double y, double w, double h, PdfColor? color = null, bool keepAspect = true)
+    {
+        if (svg.ObjectId == 0) _writer.AddSvg(svg);
+        EndText();
+        double sx = w / svg.Width, sy = h / svg.Height;
+        if (keepAspect)
+        {
+            double sc = Math.Min(sx, sy);
+            x += (w - svg.Width * sc) / 2;
+            y += (h - svg.Height * sc) / 2;
+            sx = sy = sc;
+        }
+        SaveState();
+        if (svg.MonoColor is { } mono) Color(color ?? mono, false);
+        var s = Content;
+        s.Real(sx); s.Ascii(" 0 0 "); s.Real(sy); s.Space();
+        s.Real(x); s.Space(); s.Real(Height - y - svg.Height * sy);
+        s.Ascii(" cm /");
+        s.Ascii(svg.ResourceName);
+        s.Ascii(" Do\n");
+        RestoreState();
+    }
+
     // ── متن ─────────────────────────────────────────────────────────
 
     internal static void WriteGlyphs(ByteSink s, ReadOnlySpan<ushort> glyphs)

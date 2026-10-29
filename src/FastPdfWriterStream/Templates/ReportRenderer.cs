@@ -846,8 +846,10 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
                         d.LineWidth is 0 ? null : e.LineColor, e.Style.Background, d.LineWidth ?? 0.75);
                     break;
                 case "image":
-                    var img = ResolveImage(d.Source);
-                    if (img != null) page.DrawImage(img, x, y, w, h, d.KeepAspectRatio);
+                    if (ResolveSvg(d.Source) is { } svg)
+                        page.DrawSvg(svg, x, y, w, h, Color(d.Color), d.KeepAspectRatio);
+                    else if (ResolveImage(d.Source) is { } img)
+                        page.DrawImage(img, x, y, w, h, d.KeepAspectRatio);
                     DrawBorder(page, e.Style, x, y, w, h);
                     break;
                 default:
@@ -874,6 +876,45 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         if (sides.Contains('B')) page.DrawLine(x, y + h, x + w, y + h, s.BorderColor, b.Width, b.Dashed);
         if (sides.Contains('L')) page.DrawLine(x, y, x, y + h, s.BorderColor, b.Width, b.Dashed);
         if (sides.Contains('R')) page.DrawLine(x + w, y, x + w, y + h, s.BorderColor, b.Width, b.Dashed);
+    }
+
+    private readonly Dictionary<string, PdfSvg?> _svgImages = new(StringComparer.Ordinal);
+
+    /// <summary>منبع SVG: فایل .svg، data:image/svg+xml یا پارامتری که متن SVG دارد.</summary>
+    private PdfSvg? ResolveSvg(string? source)
+    {
+        if (string.IsNullOrWhiteSpace(source)) return null;
+        if (_svgImages.TryGetValue(source, out var cached)) return cached;
+        PdfSvg? svg = null;
+        try
+        {
+            var s = source.Trim();
+            string? text = null;
+            if (s.StartsWith("data:image/svg+xml", StringComparison.OrdinalIgnoreCase))
+            {
+                int comma = s.IndexOf(',');
+                var payload = s[(comma + 1)..];
+                text = s[..comma].Contains(";base64", StringComparison.OrdinalIgnoreCase)
+                    ? System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload))
+                    : Uri.UnescapeDataString(payload);
+            }
+            else if (s.StartsWith('{') && s.EndsWith('}'))
+            {
+                if (_params.GetValueOrDefault(s[1..^1].Trim()) is string str && str.TrimStart().StartsWith("<", StringComparison.Ordinal)) text = str;
+            }
+            else if (s.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+            {
+                var path = _engine.ResolveImagePath(s);
+                if (path != null) text = File.ReadAllText(path);
+            }
+            if (text != null) svg = _pdf.AddSvg(PdfSvg.Parse(text));
+        }
+        catch (Exception ex) when (ex is FormatException or IOException or NotSupportedException or InvalidDataException or System.Xml.XmlException)
+        {
+            svg = null;
+        }
+        _svgImages[source] = svg;
+        return svg;
     }
 
     private PdfImage? ResolveImage(string? source)

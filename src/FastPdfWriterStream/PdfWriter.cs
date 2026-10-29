@@ -21,6 +21,7 @@ public sealed class PdfWriter : IDisposable
 
     private readonly List<PdfFont> _fonts = new();
     private readonly List<PdfImage> _images = new();
+    private readonly List<PdfSvg> _svgs = new();
     private readonly Dictionary<string, PdfImage> _imageCache = new(StringComparer.Ordinal);
     private readonly List<TotalPagesSlot> _totalSlots = new();
     private readonly Dictionary<int, string> _opacityStates = new();
@@ -213,6 +214,22 @@ public sealed class PdfWriter : IDisposable
         }
         return image;
     }
+
+    /// <summary>افزودن تصویر برداری SVG (یک بار نوشته می‌شود، در هر صفحه با Do رسم می‌شود).</summary>
+    public PdfSvg AddSvg(PdfSvg svg)
+    {
+        EnsureOpen();
+        if (svg.ObjectId != 0) return svg;
+        svg.ResourceName = "Sv" + (_svgs.Count + 1);
+        svg.ObjectId = Reserve();
+        _svgs.Add(svg);
+        var content = PdfImage.Deflate(svg.BuildContent());
+        WriteStreamObject(svg.ObjectId, content,
+            string.Create(CultureInfo.InvariantCulture, $"/Type /XObject /Subtype /Form /BBox [0 0 {svg.Width:0.###} {svg.Height:0.###}]"), true);
+        return svg;
+    }
+
+    public PdfSvg AddSvg(string path) => AddSvg(PdfSvg.FromFile(path));
 
     internal string OpacityState(double opacity)
     {
@@ -664,7 +681,7 @@ public sealed class PdfWriter : IDisposable
             }
             _out.Ascii(" >>");
         }
-        if (_images.Count > 0 || _totalSlots.Count > 0)
+        if (_images.Count > 0 || _totalSlots.Count > 0 || _svgs.Count > 0)
         {
             _out.Ascii(" /XObject <<");
             foreach (var img in _images)
@@ -680,6 +697,13 @@ public sealed class PdfWriter : IDisposable
                 _out.Name(s.Name);
                 _out.Space();
                 Ref(s.ObjectId);
+            }
+            foreach (var v in _svgs)
+            {
+                _out.Space();
+                _out.Name(v.ResourceName);
+                _out.Space();
+                Ref(v.ObjectId);
             }
             _out.Ascii(" >>");
         }
