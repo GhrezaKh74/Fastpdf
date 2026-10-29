@@ -37,6 +37,10 @@ public sealed class PdfWriter : IDisposable
     internal readonly List<GlyphLine> LineScratch = new();
 
     private PdfPage? _current;
+    private readonly int _sigFieldId, _sigValueId;
+    private int _firstPageId;
+    private long _sigByteRangePos, _sigContentsStart, _sigContentsEnd;
+    private const int ByteRangeWidth = 48;
     private bool _closed;
     private int _pageCount;
 
@@ -50,7 +54,10 @@ public sealed class PdfWriter : IDisposable
     public IReadOnlyList<PdfFont> Fonts => _fonts;
 
     public PdfWriter(string path, PdfWriterOptions? options = null)
-        : this(new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 1, FileOptions.SequentialScan), false, options)
+        : this(new FileStream(path, FileMode.Create,
+            // امضای دیجیتال باید فایل نوشته‌شده را دوباره بخواند
+            options?.Signature != null ? FileAccess.ReadWrite : FileAccess.Write,
+            FileShare.None, 1, FileOptions.SequentialScan), false, options)
     {
     }
 
@@ -69,6 +76,14 @@ public sealed class PdfWriter : IDisposable
         _pagesRootId = Reserve();
         _resourcesId = Reserve();
         _infoId = Reserve();
+
+        if (Options.Signature != null)
+        {
+            if (!stream.CanSeek || !stream.CanRead)
+                throw new ArgumentException("Digital signature needs a readable and seekable output stream (e.g. FileStream opened with ReadWrite, or MemoryStream).", nameof(stream));
+            _sigFieldId = Reserve();
+            _sigValueId = Reserve();
+        }
     }
 
     // ── مدیریت اشیاء ────────────────────────────────────────────────
@@ -296,6 +311,13 @@ public sealed class PdfWriter : IDisposable
         Ref(_resourcesId);
         _out.Ascii(" /Contents ");
         Ref(p.ContentId);
+        if (_sigFieldId != 0 && _firstPageId == 0)
+        {
+            _firstPageId = p.PageId;
+            _out.Ascii(" /Annots [");
+            Ref(_sigFieldId);
+            _out.Ascii("]");
+        }
         _out.Ascii(" >>");
         EndObject();
 
@@ -335,13 +357,92 @@ public sealed class PdfWriter : IDisposable
         foreach (var f in _fonts) WriteFont(f);
         WriteResources();
         WritePageTree();
+        if (_sigFieldId != 0) WriteSignaturePlaceholder();
         WriteCatalogAndInfo();
         WriteXrefAndTrailer();
         _out.Flush();
         _out.ReturnBuffer();
         _stream.Flush();
         _closed = true;
-        if (!_leaveOpen) _stream.Dispose();
+        try
+        {
+            if (_sigFieldId != 0) SignDocument();
+        }
+        finally
+        {
+            if (!_leaveOpen) _stream.Dispose();
+        }
+    }
+
+    // ── امضای دیجیتال (PKCS#7 detached، قابل بررسی در Adobe Reader) ──
+
+    private void WriteSignaturePlaceholder()
+    {
+        var sig = Options.Signature!;
+        BeginObject(_sigValueId);
+        _out.Ascii("<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange ");
+        _sigByteRangePos = _out.Position;
+        _out.Ascii(new string(' ', ByteRangeWidth));
+        _out.Ascii(" /Contents ");
+        _sigContentsStart = _out.Position;
+        _out.Byte((byte)'<');
+        var zeros = new byte[sig.ReservedBytes * 2];
+        Array.Fill(zeros, (byte)'0');
+        _out.Bytes(zeros);
+        _out.Byte((byte)'>');
+        _sigContentsEnd = _out.Position;
+        _out.Ascii(" /M ");
+        _out.TextString("D:" + DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + "Z");
+        if (!string.IsNullOrEmpty(sig.Reason)) { _out.Ascii(" /Reason "); _out.TextString(sig.Reason); }
+        if (!string.IsNullOrEmpty(sig.Location)) { _out.Ascii(" /Location "); _out.TextString(sig.Location); }
+        if (!string.IsNullOrEmpty(sig.ContactInfo)) { _out.Ascii(" /ContactInfo "); _out.TextString(sig.ContactInfo); }
+        _out.Ascii(" /Name ");
+        _out.TextString(sig.Certificate.GetNameInfo(System.Security.Cryptography.X509Certificates.X509NameType.SimpleName, false));
+        _out.Ascii(" >>");
+        EndObject();
+
+        // فیلد امضای نامرئی روی صفحهٔ اول
+        BeginObject(_sigFieldId);
+        _out.Ascii("<< /Type /Annot /Subtype /Widget /FT /Sig /T ");
+        _out.TextString(sig.FieldName);
+        _out.Ascii(" /V ");
+        Ref(_sigValueId);
+        _out.Ascii(" /F 132 /Rect [0 0 0 0] /P ");
+        Ref(_firstPageId);
+        _out.Ascii(" >>");
+        EndObject();
+    }
+
+    private void SignDocument()
+    {
+        var sig = Options.Signature!;
+        long length = _stream.Length;
+        long tail = length - _sigContentsEnd;
+        string byteRange = string.Create(CultureInfo.InvariantCulture, $"[0 {_sigContentsStart} {_sigContentsEnd} {tail}]").PadRight(ByteRangeWidth);
+        if (byteRange.Length > ByteRangeWidth) throw new InvalidOperationException("ByteRange placeholder too small.");
+        _stream.Position = _sigByteRangePos;
+        _stream.Write(System.Text.Encoding.ASCII.GetBytes(byteRange));
+
+        // محتوای امضاشده: کل فایل به جز رشتهٔ Contents
+        var data = new byte[_sigContentsStart + tail];
+        _stream.Position = 0;
+        _stream.ReadExactly(data, 0, (int)_sigContentsStart);
+        _stream.Position = _sigContentsEnd;
+        _stream.ReadExactly(data, (int)_sigContentsStart, (int)tail);
+
+        byte[] pkcs7 = PdfSigner.Sign(data, sig);
+        if (pkcs7.Length > sig.ReservedBytes)
+            throw new InvalidOperationException($"Signature ({pkcs7.Length} bytes) is larger than ReservedBytes ({sig.ReservedBytes}).");
+        var hex = new byte[pkcs7.Length * 2];
+        const string digits = "0123456789ABCDEF";
+        for (int i = 0; i < pkcs7.Length; i++)
+        {
+            hex[i * 2] = (byte)digits[pkcs7[i] >> 4];
+            hex[i * 2 + 1] = (byte)digits[pkcs7[i] & 0xF];
+        }
+        _stream.Position = _sigContentsStart + 1;
+        _stream.Write(hex);
+        _stream.Flush();
     }
 
     /// <summary>بستن خروجی بدون نوشتن بخش‌های پایانی (در صورت خطا).</summary>
@@ -638,6 +739,12 @@ public sealed class PdfWriter : IDisposable
         _out.Ascii("<< /Type /Catalog /Pages ");
         Ref(_pagesRootId);
         if (Options.RightToLeft) _out.Ascii(" /ViewerPreferences << /Direction /R2L >>");
+        if (_sigFieldId != 0)
+        {
+            _out.Ascii(" /AcroForm << /Fields [");
+            Ref(_sigFieldId);
+            _out.Ascii("] /SigFlags 3 >>");
+        }
         _out.Ascii(" >>");
         EndObject();
 

@@ -28,6 +28,7 @@ is written to the output stream as soon as it's full, so memory stays flat wheth
 - 🧮 **Formats**: `N0`, `#,0;(#,0);-`, `persian` (Shamsi date), `mask:####/##/##`, `div:100:#,0.00`, `abs:`, `bool:بله|خیر`
 - 🎨 **Visual designer**: WYSIWYG, RTL, works offline, one line to host: `app.MapFastPdfDesigner("/pdf-designer")`
 - 🔌 **Data sources**: `IEnumerable<T>` (compiled getters, no reflection per row), `IAsyncEnumerable<T>` (EF Core streaming), `DataTable`, `IDataReader`, dictionaries
+- 🔏 **Digital signature**: PKCS#7 detached (SHA-256), invisible signature field
 - 🧱 **Drawing API**: text boxes (shrink / wrap / clip / ellipsis), lines, rectangles, rounded rectangles, JPEG/PNG (with alpha), opacity, rotated text
 
 ---
@@ -236,6 +237,20 @@ page.DrawText("صفحه ", 20, 800, 555, 16, style);             //  = tot
 ```
 
 ---
+
+## 🔏 Digital signature
+
+PDFs can be signed with an X.509 certificate (PKCS#7 detached, SHA-256), and Adobe Reader can verify the signature.
+
+```csharp
+var cert = /* X509Certificate2 with private key, e.g. from LocalMachine\My */;
+using var pdf = new PdfWriter("signed.pdf", new PdfWriterOptions
+{
+    Signature = new PdfSignatureOptions(cert) { Reason = "گزارش پایانه فروش" }
+});
+```
+
+The output must be readable and seekable. A file path or a `MemoryStream` both work.
 
 ## Notes and limitations
 

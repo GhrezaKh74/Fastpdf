@@ -160,9 +160,35 @@ public sealed class PdfWriterOptions
     /// </summary>
     public int TotalPagesDigits { get; set; } = 3;
 
+    /// <summary>
+    /// امضای دیجیتال سند (PKCS#7 detached). خروجی باید قابل Seek و Read باشد
+    /// (سازندهٔ مسیر فایل این را خودکار رعایت می‌کند).
+    /// </summary>
+    public PdfSignatureOptions? Signature { get; set; }
+
     public string? Title { get; set; }
     public string? Author { get; set; }
     public string? Subject { get; set; }
     public string? Keywords { get; set; }
     public string? Creator { get; set; }
+}
+
+/// <summary>تنظیمات امضای دیجیتال PDF.</summary>
+public sealed class PdfSignatureOptions
+{
+    public PdfSignatureOptions(System.Security.Cryptography.X509Certificates.X509Certificate2 certificate)
+    {
+        Certificate = certificate ?? throw new ArgumentNullException(nameof(certificate));
+    }
+
+    /// <summary>گواهی دارای کلید خصوصی.</summary>
+    public System.Security.Cryptography.X509Certificates.X509Certificate2 Certificate { get; }
+    public string? Reason { get; set; }
+    public string? Location { get; set; }
+    public string? ContactInfo { get; set; }
+    public string FieldName { get; set; } = "Signature1";
+    /// <summary>فضای رزرو شده برای امضا (بایت).</summary>
+    public int ReservedBytes { get; set; } = 16 * 1024;
+    /// <summary>گنجاندن زنجیرهٔ گواهی (در صورت امکان).</summary>
+    public bool IncludeChain { get; set; } = true;
 }
