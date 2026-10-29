@@ -124,7 +124,7 @@
     'showGrandTotals', 'grandTotalsLabel', 'showCarryForward', 'carryForwardLabel', 'emptyText', 'groupBy',
     'groupHeaderText', 'groupHeaderBackground', 'showGroupTotals', 'groupTotalsLabel', 'header', 'field', 'format',
     'headerAlign', 'aggregate', 'negativeColor', 'visible', 'watermark', 'opacity', 'angle', 'parameters', 'fields',
-    'title', 'sample', 'maxColumnsPerLine', 'line', 'spanLines', 'details', 'detailSeparator', 'label', 'hideEmptyColumns', 'subLineHeight'];
+    'title', 'sample', 'maxColumnsPerLine', 'line', 'spanLines', 'details', 'detailSeparator', 'label', 'hideEmptyColumns', 'subLineHeight', 'subHeaderHeight'];
   const KEY_MAP = new Map(KNOWN_KEYS.map((k) => [k.toLowerCase(), k]));
   const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -1103,20 +1103,29 @@
     return { cols, lineCount, tableLeft, tableW, flowX1: fx1, flowX2: fx2 };
   }
 
+  /** Height/offset of sub-line l inside a preview row (header lines may differ). */
+  const subH = (r, l) => (r.subs ? r.subs[l] : r.sub);
+  const subTop = (r, l) => { let t = 0; for (let k = 0; k < l; k++) t += subH(r, k); return t; };
+
   /** Preview rows: header + optional carry/group rows + 4 sample records + enabled totals rows. */
   function tableRows(geo) {
     const lc = geo.lineCount;
     const rh = Math.max(1, num(tv('rowHeight'), 16));
     const hh = Math.max(1, num(tv('headerHeight'), 20));
     const tot = Math.max(rh, 14); // engine: TotalsHeight = max(rowHeight, 14)
-    const rows = [{ kind: 'header', sub: hh, h: hh * lc }];
-    if (tv('showCarryForward')) rows.push({ kind: 'carry', sub: tot, h: tot * lc });
+    // Totals rows only use lines that carry an aggregate (line 0 always: label), as in the engine.
+    const aggLine = (l) => l === 0 || geo.cols.some((c) => c.line === l && !c.span && c.c.aggregate && lower(c.c.aggregate) !== 'none');
+    const totSubs = Array.from({ length: lc }, (_, l) => (aggLine(l) ? tot : 0));
+    const totH = totSubs.reduce((a, b) => a + b, 0);
+    const shh = tv('subHeaderHeight') != null && tv('subHeaderHeight') !== '' ? Math.max(0, num(tv('subHeaderHeight'), hh)) : hh;
+    const rows = [{ kind: 'header', sub: hh, subs: [hh].concat(new Array(Math.max(0, lc - 1)).fill(shh)), h: hh + shh * (lc - 1) }];
+    if (tv('showCarryForward')) rows.push({ kind: 'carry', sub: tot, subs: totSubs, h: totH });
     const grouped = !!tv('groupBy');
     if (grouped) rows.push({ kind: 'group', sub: tot, h: tot, full: true });
     for (let i = 0; i < 4; i++) rows.push({ kind: 'data', sub: rh, h: rh * lc, i });
-    if (grouped && tv('showGroupTotals')) rows.push({ kind: 'groupTotal', sub: tot, h: tot * lc });
-    if (tv('showPageTotals')) rows.push({ kind: 'pageTotal', sub: tot, h: tot * lc });
-    if (tv('showGrandTotals')) rows.push({ kind: 'grandTotal', sub: tot, h: tot * lc });
+    if (grouped && tv('showGroupTotals')) rows.push({ kind: 'groupTotal', sub: tot, subs: totSubs, h: totH });
+    if (tv('showPageTotals')) rows.push({ kind: 'pageTotal', sub: tot, subs: totSubs, h: totH });
+    if (tv('showGrandTotals')) rows.push({ kind: 'grandTotal', sub: tot, subs: totSubs, h: totH });
     return rows;
   }
 
@@ -1545,7 +1554,8 @@
       const isTotals = r.kind !== 'header' && r.kind !== 'data';
       for (let l = 0; l < geo.lineCount; l++) {
         const lineCols = byLine[l];
-        const top = y + l * r.sub;
+        const top = y + subTop(r, l);
+        if (subH(r, l) <= 0) continue;
         let first = 0;
         if (isTotals) {
           // Leading non-aggregate columns merge into one label cell (label only on line 0).
@@ -1557,7 +1567,7 @@
             const x2 = Math.max(...part.map((c) => c.left + c.width));
             const st = resolveStyle([t.totalsStyle], null, [], { bold: true });
             st.align = 'Center';
-            const d = cell(x1, top, x2 - x1, r.sub, l === 0 ? (labels[r.kind] || '') : '', st,
+            const d = cell(x1, top, x2 - x1, subH(r, l), l === 0 ? (labels[r.kind] || '') : '', st,
               normHex(tv('totalsBackground')), null, 'ردیف جمع');
             d.addEventListener('pointerdown', selectTable);
           }
@@ -1585,7 +1595,7 @@
             bg = normHex(tv('totalsBackground'));
           }
           const full = c.span && !isTotals;
-          const d = cell(c.left, full ? y : top, c.width, full ? r.h : r.sub, text, st, bg,
+          const d = cell(c.left, full ? y : top, c.width, full ? r.h : subH(r, l), text, st, bg,
             (r.kind === 'header' ? 'header' : '') + (c.i === selCol ? ' col-sel' : ''),
             r.kind === 'header' ? 'ستون: ' + (c.c.header || c.c.field || '') : String(c.c.field || ''));
           d.addEventListener('pointerdown', (e) => {
@@ -1603,7 +1613,6 @@
     if (lines) div.append(lines);
 
     // Column resize grips at each column's end-side edge (left edge in RTL), per header sub-line.
-    const hsub = rows[0].sub;
     for (const lineCols of byLine) {
       lineCols.forEach((c, k) => {
         const edge = rtl ? c.left : c.left + c.width;
@@ -1611,7 +1620,7 @@
         const grip = h('div', {
           class: 'col-grip',
           title: 'برای تغییر پهنای ستون بکشید',
-          style: { left: px(edge), top: px(c.line * hsub), height: px(hsub) },
+          style: { left: px(edge), top: px(subTop(rows[0], c.line)), height: px(subH(rows[0], c.line)) },
         });
         grip.addEventListener('pointerdown', (e) => startColumnResize(e, c.i, next ? next.i : null, c.scale));
         div.append(grip);
@@ -1644,7 +1653,8 @@
       if (r.kind !== 'group') {
         const isTotals = r.kind !== 'header' && r.kind !== 'data';
         for (let l = 0; l < geo.lineCount; l++) {
-          const top = y0 + l * r.sub;
+          const top = y0 + subTop(r, l);
+          if (subH(r, l) <= 0) continue;
           if (l > 0) {
             if (r.kind === 'data') {
               svg.append(svgEl('line', {
@@ -1663,7 +1673,7 @@
             const x = rtl ? c.left : c.left + c.width;
             if (Math.abs(x - L0) < 0.01 || Math.abs(x - R0) < 0.01) return;
             if (c.span && !isTotals) { if (l === 0) line(x, y0, x, y0 + r.h); return; }
-            line(x, top, x, top + r.sub);
+            line(x, top, x, top + subH(r, l));
           });
         }
       }
@@ -3155,6 +3165,7 @@
       { k: 'maxColumnsPerLine', label: 'حداکثر ستون در هر سطر', t: 'num', def: 0, min: 0, step: 1, int: true },
       { k: 'hideEmptyColumns', label: 'حذف خودکار ستون‌های خالی', t: 'bool', def: false },
       { k: 'subLineHeight', label: 'ارتفاع سطرهای دوم به بعد', t: 'num', min: 1, step: 0.5, ph: 'برابر ارتفاع ردیف' },
+      { k: 'subHeaderHeight', label: 'ارتفاع سطرهای دوم سرجدول (۰ = پنهان)', t: 'num', min: 0, step: 0.5, ph: 'برابر ارتفاع سرستون' },
     ], 'tbl'),
     h('div', { class: 'hint' }, 'اگر تعداد ستون‌های قابل‌مشاهده بیشتر از «حداکثر ستون در هر سطر» باشد، هر رکورد در چند سطر چیده می‌شود (۰ = همیشه یک سطر). با تعیین «سطر» برای ستون‌ها می‌توان چیدمان را دستی مشخص کرد.')]));
     body.append(sec('tbl-look', 'ظاهر', formRows(get, [

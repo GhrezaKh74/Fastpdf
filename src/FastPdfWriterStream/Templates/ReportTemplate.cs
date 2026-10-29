@@ -217,6 +217,9 @@ public sealed class TableDefinition
     /// <summary>ارتفاع (حداقل) هر ردیف.</summary>
     public double RowHeight { get; set; } = 16;
 
+    /// <summary>ارتفاع سطرهای دوم به بعد سرجدول در جدول چندسطری؛ ۰ یعنی پنهان (مثلا برای سطر جزئیات). null یعنی HeaderHeight.</summary>
+    public double? SubHeaderHeight { get; set; }
+
     /// <summary>ارتفاع سطرهای دوم به بعد یک رکورد چندسطری (مثلا سطر جزئیات با فونت ریزتر). null یعنی RowHeight.</summary>
     public double? SubLineHeight { get; set; }
     public bool RepeatHeader { get; set; } = true;

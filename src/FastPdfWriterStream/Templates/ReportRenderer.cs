@@ -256,7 +256,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
 
             if (expectedRows is > 0 && _table != null)
             {
-                double usable = ContentBottom - _top - (_pageHeader?.Height ?? 0) - _table.HeaderHeight * _lineCount;
+                double usable = ContentBottom - _top - (_pageHeader?.Height ?? 0) - _table.HeaderHeight - (_table.SubHeaderHeight ?? _table.HeaderHeight) * (_lineCount - 1);
                 double perPage = Math.Max(1, Math.Floor(usable / Math.Max(1, _table.RowHeight * _lineCount)));
                 long pages = (long)Math.Ceiling(expectedRows.Value / perPage) + 1;
                 _pdf.Options.TotalPagesDigits = pages.ToString().Length;
@@ -358,7 +358,7 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         for (int l = 0; l < _lineCount; l++) _lineH[l] = l == 0 ? _table.RowHeight : _table.SubLineHeight ?? _table.RowHeight;
         if (_hasWrap)
         {
-            double maxLine = (TableBottom - _top - _table.HeaderHeight * _lineCount - 1) / _lineCount;
+            double maxLine = (TableBottom - _top - _table.HeaderHeight - (_table.SubHeaderHeight ?? _table.HeaderHeight) * (_lineCount - 1) - 1) / _lineCount;
             foreach (var c in cols)
                 if (c.Wrap && c.Len > 0 && !c.Span)
                     _lineH[c.Line] = Math.Min(maxLine, Math.Max(_lineH[c.Line],
@@ -502,21 +502,30 @@ public sealed class ReportRenderer<T> : IDisposable, ICompileContext<T>, IEvalCo
         if (firstTablePage || t.RepeatHeader)
         {
             var page = _page!;
-            double hh = t.HeaderHeight * _lineCount;
+            // ارتفاع هر سطر سرجدول؛ سطرهای دوم به بعد می‌توانند کوتاه‌تر یا پنهان (۰) باشند
+            var headerLines = new double[_lineCount];
+            for (int l = 0; l < _lineCount; l++) headerLines[l] = l == 0 ? t.HeaderHeight : Math.Max(0, t.SubHeaderHeight ?? t.HeaderHeight);
+            double hh = headerLines.Sum();
             if (_headerBg is { } hb) page.FillRect(_tableLeft, _y, _tableRight - _tableLeft, hh, hb);
             foreach (var c in _cols)
             {
+                double ch = c.Span ? hh : headerLines[c.Line];
+                if (ch <= 0) continue;
+                double cy = _y;
+                if (!c.Span) for (int l = 0; l < c.Line; l++) cy += headerLines[l];
                 var text = c.Header.Evaluate(this, default, false, ref _buf);
-                if (c.Span) page.DrawText(text, c.X, _y, c.W, hh, c.HeaderStyle);
-                else page.DrawText(text, c.X, _y + c.Line * t.HeaderHeight, c.W, t.HeaderHeight, c.HeaderStyle);
+                page.DrawText(text, c.X, cy, c.W, ch, c.HeaderStyle);
             }
             if (_lineCount > 1)
             {
-                var headerLines = new double[_lineCount];
-                Array.Fill(headerLines, t.HeaderHeight);
                 AddLineVerticals(_y, headerLines, separators: false);
                 var (fx1, fx2) = FlowRange();
-                for (int l = 1; l < _lineCount; l++) _extraH.Add((fx1, fx2, _y + l * t.HeaderHeight));
+                double hy = _y;
+                for (int l = 1; l < _lineCount; l++)
+                {
+                    hy += headerLines[l - 1];
+                    if (headerLines[l] > 0) _extraH.Add((fx1, fx2, hy));
+                }
             }
             _y += hh;
             _hLines.Add(_y);

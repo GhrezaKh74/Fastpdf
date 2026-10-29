@@ -1,6 +1,6 @@
 {
   "name": "bank-statement-wide",
-  "description": "صورتحساب با ستون‌های زیاد: ستون‌های اصلی در یک سطر + سطر جزئیات تمام‌عرض (فقط مقادیر پر)",
+  "description": "صورتحساب: ستون‌های اصلی + سطر جزئیات تمام‌عرض (فقط مقادیر پر) — اندازه‌ها مناسب چاپ A4",
   "version": 1,
   "page": {
     "size": "A4",
@@ -29,35 +29,37 @@
       "align": "Center"
     },
     "small": {
-      "fontSize": 8,
+      "fontSize": 8.5,
       "color": "#595959"
     },
     "label": {
-      "fontSize": 8,
+      "fontSize": 8.5,
       "bold": true,
       "color": "#404040",
       "align": "Start"
     },
     "value": {
-      "fontSize": 8,
+      "fontSize": 8.5,
       "align": "Start"
     },
     "header": {
-      "fontSize": 8,
+      "fontSize": 9,
       "bold": true,
       "color": "#1F3864",
       "align": "Center",
-      "overflow": "Wrap"
+      "overflow": "Wrap",
+      "minFontSize": 8
     },
     "row": {
-      "fontSize": 7.5
+      "fontSize": 9,
+      "minFontSize": 8
     },
     "totals": {
-      "fontSize": 8,
+      "fontSize": 9,
       "bold": true
     },
     "footer": {
-      "fontSize": 7.5,
+      "fontSize": 8,
       "color": "#595959"
     }
   },
@@ -530,7 +532,7 @@
       {
         "header": "ردیف",
         "field": "RowNumber",
-        "width": 32,
+        "width": 30,
         "align": "Center",
         "visible": true,
         "spanLines": true
@@ -538,7 +540,7 @@
       {
         "header": "تاریخ",
         "field": "TR0108",
-        "width": 58,
+        "width": 62,
         "format": "mask:####/##/##",
         "align": "Center",
         "visible": true,
@@ -547,7 +549,7 @@
       {
         "header": "ساعت",
         "field": "TR0121",
-        "width": 48,
+        "width": 50,
         "format": "mask:##:##:##",
         "align": "Center",
         "visible": true,
@@ -556,10 +558,11 @@
       {
         "header": "شرح",
         "field": "desc_desc",
-        "width": 150,
+        "width": 170,
         "align": "Start",
         "visible": true,
-        "spanLines": false
+        "spanLines": false,
+        "overflow": "Wrap"
       },
       {
         "header": "کد شعبه",
@@ -572,7 +575,7 @@
       {
         "header": "کد کاربری",
         "field": "UserCode",
-        "width": 55,
+        "width": 52,
         "align": "Center",
         "visible": true,
         "spanLines": false
@@ -580,7 +583,7 @@
       {
         "header": "فیش/حواله",
         "field": "TR0119",
-        "width": 70,
+        "width": 64,
         "align": "Center",
         "visible": true,
         "spanLines": false
@@ -588,7 +591,7 @@
       {
         "header": "برداشت",
         "field": "TR0105",
-        "width": 80,
+        "width": 84,
         "format": "#,0;(#,0);-",
         "align": "Left",
         "aggregate": "Sum",
@@ -598,7 +601,7 @@
       {
         "header": "واریز",
         "field": "TR0106",
-        "width": 80,
+        "width": 84,
         "format": "#,0;(#,0);-",
         "align": "Left",
         "aggregate": "Sum",
@@ -608,7 +611,7 @@
       {
         "header": "مانده",
         "field": "TR0110",
-        "width": 88,
+        "width": 92,
         "format": "#,0;-#,0;0",
         "align": "Left",
         "negativeColor": "#C00000",
@@ -626,7 +629,7 @@
       {
         "header": "PSP",
         "field": "Info",
-        "width": 55,
+        "width": 60,
         "align": "Center",
         "visible": true,
         "spanLines": false
@@ -636,8 +639,8 @@
         "field": "",
         "width": 100,
         "align": "Start",
-        "fontSize": 6.5,
-        "color": "#4A4A4A",
+        "fontSize": 8,
+        "color": "#404040",
         "visible": true,
         "line": 1,
         "spanLines": false,
@@ -697,8 +700,8 @@
         ]
       }
     ],
-    "headerHeight": 22,
-    "rowHeight": 12.5,
+    "headerHeight": 24,
+    "rowHeight": 16,
     "repeatHeader": true,
     "fitWidth": true,
     "maxColumnsPerLine": 0,
@@ -723,7 +726,8 @@
     "showGroupTotals": false,
     "groupTotalsLabel": "جمع گروه",
     "hideEmptyColumns": true,
-    "subLineHeight": 9.5
+    "subLineHeight": 13,
+    "subHeaderHeight": 0
   },
   "reportFooter": {
     "height": 60,
